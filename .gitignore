@@ -44,3 +44,6 @@ yarn-error.*
 
 # Claude Code assistant tooling (doesn't affect the app itself)
 .claude/
+
+# Local project plan (not app code, tracked in Notion instead of GitHub)
+PLAN.md
