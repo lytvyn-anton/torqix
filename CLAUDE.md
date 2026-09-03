@@ -1,24 +1,27 @@
 # Fitness AI App
 
-Навчальний проєкт: мобільний фітнес-застосунок, де AI сам створює програми тренувань
-і відслідковує прогрес користувача. Деталі стеку, моделі даних і фаз — у [PLAN.md](PLAN.md).
+Learning project: a mobile fitness app where AI generates workout programs and tracks the
+user's progress. Stack, data model, and phases live in [PLAN.md](PLAN.md).
 
-## Джерела правди
-- **PLAN.md** — стек, модель даних, опис фаз. Читай першим при старті нової сесії.
+## Sources of truth
+- **PLAN.md** — stack, data model, phase breakdown. Read this first when starting a new session.
 - **Notion "Fitness AI App — Tasks"** — https://app.notion.com/p/4334509b5bd84f34bc061ccbf82adf64
-  Конкретні задачі по кожній фазі зі статусами (Not started / In progress / Done).
-  Перед стартом роботи перевіряй там, що вже зроблено і що в черзі.
+  Concrete per-phase tasks with statuses (Not started / In progress / Done).
+  Check it before starting work to see what's already done and what's queued.
 
-## Стек (коротко)
+## Stack (short)
 - React Native + Expo (TypeScript)
 - Supabase (Postgres, Auth, Storage, Edge Functions) — free tier
-- AI: Google Gemini API, ключ з Google AI Studio, виклики через Supabase Edge Function
-  (ключ не потрапляє в клієнтський код)
+- AI: Google Gemini API, key from Google AI Studio, calls go through a Supabase Edge Function
+  (key never ships in client code)
 
-## Як працюємо
-- Йдемо фазами з PLAN.md послідовно, не одним великим промптом.
-- Кожну фазу узгоджуємо перед стартом, тестуємо перед переходом до наступної.
-- Після завершення задачі — онови її статус у Notion-базі задач (Not started → In progress → Done),
-  і онови чекбокс відповідної фази в PLAN.md, коли фаза завершена повністю.
-- Комітимо в git окремими логічними шматками, не одним велетенським комітом на всю фазу.
-- Мова спілкування — українська.
+## How we work
+- Go through PLAN.md phases sequentially, not in one giant prompt.
+- Agree on each phase before starting it, test it before moving to the next.
+- After finishing a task, update its status in the Notion task tracker
+  (Not started → In progress → Done), and check off the phase in PLAN.md once it's fully done.
+- Commit to git in logical chunks, not one giant commit per phase.
+- All documentation (this file, PLAN.md, Notion, code comments, commit messages) is written
+  in English. Conversation in chat follows whatever language the user uses.
+- Use the `design` skill for UI mockups/wireframes before building screens for a phase,
+  once that phase's data/logic work is agreed on.

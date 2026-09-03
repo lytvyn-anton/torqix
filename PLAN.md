@@ -1,43 +1,44 @@
-# Fitness AI App — план проєкту
+# Fitness AI App — Project Plan
 
-## Мета
-Навчальний проєкт: мобільний фітнес-застосунок, де AI сам створює програми тренувань
-(вправа → підходи → повторення → вага) і відслідковує прогрес користувача (зростання ваги,
-кількості підходів/повторень у часі), дає поради на основі цього прогресу.
+## Goal
+Learning project: a mobile fitness app where AI generates workout programs
+(exercise → sets → reps → weight) and tracks the user's progress (weight and
+sets/reps growth over time), giving advice based on that progress.
 
-## Стек
+## Stack
 - **Frontend:** React Native + Expo (TypeScript)
 - **Backend:** Supabase (free tier) — Postgres, Auth, Storage, Edge Functions
-- **AI:** Google Gemini API, ключ береться в Google AI Studio (безкоштовно, без картки).
-  Виклики йдуть через Supabase Edge Function, щоб ключ не потрапив у клієнтський код.
-- **Деплой:** Expo EAS Build. Спершу тестування на власному телефоні (Expo Go / dev build,
-  безкоштовно), пізніше — публікація в App Store / Google Play (платні developer акаунти,
-  окремий крок наприкінці).
+- **AI:** Google Gemini API, key obtained via Google AI Studio (free, no card required).
+  Calls go through a Supabase Edge Function so the key never ships in client code.
+- **Deployment:** Expo EAS Build. Testing starts on the developer's own phone (Expo Go /
+  dev build, free), publishing to the App Store / Google Play (paid developer accounts)
+  comes later as a separate step.
 
-## Чорновик моделі даних
-- `profiles` — ціль, рівень, обладнання (розширення auth.users)
-- `exercises` — каталог вправ (назва, група м'язів, обладнання)
-- `workout_programs` — програма тренувань (ai-generated чи manual), належить юзеру
-- `program_exercises` — вправа в програмі: порядок, підходи, повторення, цільова вага, відпочинок
-- `workout_logs` — конкретна сесія тренування (дата, посилання на програму)
-- `set_logs` — фактично виконаний підхід (вправа, повторення, вага, посилання на workout_log)
+## Data model (draft)
+- `profiles` — goal, level, equipment (extends auth.users)
+- `exercises` — exercise catalog (name, muscle group, equipment)
+- `workout_programs` — a program (ai-generated or manual), belongs to a user
+- `program_exercises` — exercise within a program: order, sets, reps, target weight, rest
+- `workout_logs` — a specific workout session (date, reference to program)
+- `set_logs` — an actually performed set (exercise, reps done, weight, reference to workout_log)
 
-## Фази роботи
-Йдемо послідовно, кожну фазу узгоджуємо й тестуємо перед стартом наступної — не одним промптом.
+## Phases
+We work through phases sequentially, agreeing on and testing each before starting the next —
+not in a single prompt.
 
-- **Phase 0 — Setup.** Ініціалізація Expo проєкту, git, Supabase проєкт, `.env`, Gemini API ключ.
-- **Phase 1 — Data & Auth.** Supabase schema (таблиці вище), auth (email/password), екран профілю.
-- **Phase 2 — Ручний трекінг (skeleton).** Каталог вправ, ручне створення програми, логування
-  підходів, простий список прогресу. Робочий core app без AI.
-- **Phase 3 — Візуалізація прогресу.** Графіки ваги/повторень по вправах у часі.
-- **Phase 4 — AI #1: генерація програм.** Edge Function викликає Gemini, повертає структурований
-  JSON програми тренувань на основі цілі/рівня/обладнання, зберігається в БД.
-- **Phase 5 — AI #2: аналіз прогресу і поради.** Edge Function аналізує `set_logs`, дає поради /
-  пропонує коригування програми.
-- **Phase 6 — Полірування.** UI/UX прохід, нотифікації, офлайн-поведінка.
-- **Phase 7 — Підготовка релізу.** EAS Build, іконки, стор-лістинги, TestFlight/internal track.
+- **Phase 0 — Setup.** Expo project init, git, Supabase project, `.env`, Gemini API key.
+- **Phase 1 — Data & Auth.** Supabase schema (tables above), auth (email/password), profile screen.
+- **Phase 2 — Manual tracking (skeleton).** Exercise catalog, manual program creation, set
+  logging, basic progress list. Working core app without AI.
+- **Phase 3 — Progress visualization.** Charts for weight/reps per exercise over time.
+- **Phase 4 — AI #1: program generation.** Edge Function calls Gemini, returns a structured
+  JSON workout program based on goal/level/equipment, saved to the DB.
+- **Phase 5 — AI #2: progress analysis & advice.** Edge Function analyzes `set_logs`, gives
+  advice / suggests program adjustments.
+- **Phase 6 — Polish.** UI/UX pass, notifications, offline handling.
+- **Phase 7 — Release prep.** EAS Build, app icons, store listings, TestFlight/internal track.
 
-## Статус
+## Status
 - [ ] Phase 0
 - [ ] Phase 1
 - [ ] Phase 2
