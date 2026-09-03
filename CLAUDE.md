@@ -52,9 +52,11 @@ user's progress. Stack, data model, and phases live in [PLAN.md](PLAN.md).
 - GitHub Actions CI (`.github/workflows/ci.yml`) runs on every PR: lint, format check, unit
   tests. `main` has branch protection requiring that check to pass before the merge button
   unlocks — no required review (solo project, no second account to approve).
-- Use the `ship` skill (`.claude/skills/ship/SKILL.md`) to run this workflow end to end:
-  branch → commit → push → open PR → wait for CI → merge → clean up the branch.
-- Repo: https://github.com/lytvyn-anton/torqix (private).
+- Use the `ship` skill (`.claude/skills/ship/SKILL.md`, local-only — `.claude/` is gitignored
+  since it's assistant tooling, not app code, so this needs to be recreated on a fresh clone)
+  to run this workflow end to end: branch → commit → push → open PR → wait for CI → merge →
+  clean up the branch.
+- Repo: https://github.com/lytvyn-anton/torqix (public — required for free branch protection).
 
 ## How we work
 
