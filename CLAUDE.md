@@ -19,6 +19,8 @@ user's progress. Stack, data model, and phases live in [PLAN.md](PLAN.md).
 - AI: Google Gemini API, key from Google AI Studio, calls go through a Supabase Edge Function
   (key never ships in client code)
 - Testing: Jest + React Native Testing Library (unit), Appium (E2E, critical flows only)
+- i18n: react-i18next + expo-localization, locale files in `src/shared/i18n/locales/`
+  (`en` and `uk` for now)
 
 ## Coding conventions
 
@@ -30,6 +32,8 @@ user's progress. Stack, data model, and phases live in [PLAN.md](PLAN.md).
 - ESLint + Prettier from Phase 0 onward; keep the codebase lint-clean as we go rather than
   batching cleanup later.
 - Every phase ships tests for what it ships — unit tests are not deferred to a later phase.
+- No hardcoded user-facing strings — every piece of UI text goes through `useTranslation()`
+  and a key in `src/shared/i18n/locales/{en,uk}.json`, added to both files together.
 - E2E (Appium) covers critical user flows only (auth, create program, log a set, view
   progress) — not exhaustive screen-by-screen coverage.
 
