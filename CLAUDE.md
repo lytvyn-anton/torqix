@@ -54,8 +54,8 @@ user's progress. Stack, data model, and phases live in [PLAN.md](PLAN.md).
   unlocks — no required review (solo project, no second account to approve).
 - Use the `ship` skill (`.claude/skills/ship/SKILL.md`, local-only — `.claude/` is gitignored
   since it's assistant tooling, not app code, so this needs to be recreated on a fresh clone)
-  to run this workflow end to end: branch → commit → push → open PR → wait for CI → merge →
-  clean up the branch.
+  to run this workflow end to end: branch → checks → `/code-review` (mandatory gate) → commit
+  → push → open PR → wait for CI → merge → clean up the branch.
 - Repo: https://github.com/lytvyn-anton/torqix (public — required for free branch protection).
 
 ## How we work
