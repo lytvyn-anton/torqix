@@ -46,7 +46,7 @@ not in a single prompt.
 
 ## Status
 
-- [ ] Phase 0
+- [x] Phase 0
 - [ ] Phase 1
 - [ ] Phase 2
 - [ ] Phase 3
