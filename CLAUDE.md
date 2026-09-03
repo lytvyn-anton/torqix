@@ -1,11 +1,13 @@
 # Fitness AI App
 
 Learning project: a mobile fitness app where AI generates workout programs and tracks the
-user's progress. Stack, data model, and phases live in [PLAN.md](PLAN.md).
+user's progress. Stack, data model, and phases live in PLAN.md (local-only, see below).
 
 ## Sources of truth
 
 - **PLAN.md** — stack, data model, phase breakdown. Read this first when starting a new session.
+  Local-only, like `.claude/` — it's a planning doc, not app code, so it's gitignored and needs
+  to be recreated on a fresh clone.
 - **AGENTS.md** — Expo moves fast; read it before touching Expo/React Native APIs so you're
   looking at docs for the SDK version actually installed here.
 - **Notion "Fitness AI App — Tasks"** — https://app.notion.com/p/4334509b5bd84f34bc061ccbf82adf64
