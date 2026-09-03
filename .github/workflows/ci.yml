@@ -28,3 +28,14 @@ jobs:
 
       - name: Unit tests
         run: npm test -- --ci
+
+      - name: Set up Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start local Supabase (database only)
+        run: supabase start -x gotrue,realtime,storage-api,imgproxy,kong,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+
+      - name: Database tests (pgTAP)
+        run: supabase test db --local
