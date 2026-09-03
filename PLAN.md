@@ -1,11 +1,13 @@
 # Fitness AI App — Project Plan
 
 ## Goal
+
 Learning project: a mobile fitness app where AI generates workout programs
 (exercise → sets → reps → weight) and tracks the user's progress (weight and
 sets/reps growth over time), giving advice based on that progress.
 
 ## Stack
+
 - **Frontend:** React Native + Expo (TypeScript)
 - **Backend:** Supabase (free tier) — Postgres, Auth, Storage, Edge Functions
 - **AI:** Google Gemini API, key obtained via Google AI Studio (free, no card required).
@@ -17,6 +19,7 @@ sets/reps growth over time), giving advice based on that progress.
   critical flows only.
 
 ## Data model (draft)
+
 - `profiles` — goal, level, equipment (extends auth.users)
 - `exercises` — exercise catalog (name, muscle group, equipment)
 - `workout_programs` — a program (ai-generated or manual), belongs to a user
@@ -25,6 +28,7 @@ sets/reps growth over time), giving advice based on that progress.
 - `set_logs` — an actually performed set (exercise, reps done, weight, reference to workout_log)
 
 ## Phases
+
 We work through phases sequentially, agreeing on and testing each before starting the next —
 not in a single prompt.
 
@@ -41,6 +45,7 @@ not in a single prompt.
 - **Phase 7 — Release prep.** EAS Build, app icons, store listings, TestFlight/internal track.
 
 ## Status
+
 - [ ] Phase 0
 - [ ] Phase 1
 - [ ] Phase 2
