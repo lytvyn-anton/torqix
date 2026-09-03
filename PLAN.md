@@ -13,6 +13,8 @@ sets/reps growth over time), giving advice based on that progress.
 - **Deployment:** Expo EAS Build. Testing starts on the developer's own phone (Expo Go /
   dev build, free), publishing to the App Store / Google Play (paid developer accounts)
   comes later as a separate step.
+- **Testing:** Jest + React Native Testing Library for unit tests; Appium for E2E, scoped to
+  critical flows only.
 
 ## Data model (draft)
 - `profiles` — goal, level, equipment (extends auth.users)
