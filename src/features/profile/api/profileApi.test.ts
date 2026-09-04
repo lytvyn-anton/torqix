@@ -16,7 +16,10 @@ const row = {
   weight_kg: 82.5,
   goal: 'build_muscle',
   level: 'intermediate',
-  equipment: [] as string[],
+  available_days_per_week: 4,
+  training_location: 'home_equipped',
+  equipment: ['dumbbells'] as string[],
+  split_preference: 'full_body',
   session_minutes: 45,
   created_at: '2026-01-01T00:00:00.000Z',
   updated_at: '2026-01-01T00:00:00.000Z',
@@ -41,7 +44,10 @@ describe('getProfile', () => {
       weightKg: 82.5,
       goal: 'build_muscle',
       level: 'intermediate',
-      equipment: [],
+      availableDaysPerWeek: 4,
+      trainingLocation: 'home_equipped',
+      equipment: ['dumbbells'],
+      splitPreference: 'full_body',
       sessionMinutes: 45,
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
@@ -82,9 +88,12 @@ describe('upsertProfile', () => {
       heightCm: 180,
       weightKg: 82.5,
       sessionMinutes: 45,
+      availableDaysPerWeek: 4,
       goal: 'build_muscle',
       level: 'advanced',
+      trainingLocation: 'home_equipped',
       equipment: ['dumbbells'],
+      splitPreference: 'full_body',
     });
 
     expect(upsert).toHaveBeenCalledWith({
@@ -94,7 +103,10 @@ describe('upsertProfile', () => {
       weight_kg: 82.5,
       goal: 'build_muscle',
       level: 'advanced',
+      available_days_per_week: 4,
+      training_location: 'home_equipped',
       equipment: ['dumbbells'],
+      split_preference: 'full_body',
       session_minutes: 45,
     });
     expect(result.level).toBe('advanced');
@@ -114,9 +126,12 @@ describe('upsertProfile', () => {
         heightCm: null,
         weightKg: null,
         sessionMinutes: null,
+        availableDaysPerWeek: null,
         goal: null,
         level: null,
+        trainingLocation: null,
         equipment: [],
+        splitPreference: null,
       }),
     ).rejects.toBe(error);
   });

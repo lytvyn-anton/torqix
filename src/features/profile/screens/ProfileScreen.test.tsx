@@ -22,7 +22,10 @@ const baseProfile: Profile = {
   weightKg: 82.5,
   goal: 'build_muscle',
   level: 'intermediate',
+  availableDaysPerWeek: 4,
+  trainingLocation: 'home_equipped',
   equipment: ['dumbbells'],
+  splitPreference: 'full_body',
   sessionMinutes: 45,
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
@@ -85,6 +88,38 @@ describe('ProfileScreen', () => {
     expect(screen.getByTestId('profile-height').props.value).toBe('180');
     expect(screen.getByTestId('profile-weight').props.value).toBe('82.5');
     expect(screen.getByTestId('profile-session-minutes').props.value).toBe('45');
+    expect(screen.getByTestId('profile-available-days-per-week').props.value).toBe('4');
+    // trainingLocation is "home_equipped" so the equipment picker should be visible.
+    expect(screen.getByTestId('option-equipment-dumbbells')).toBeTruthy();
+  });
+
+  it('hides the equipment picker unless training location is "home_equipped"', async () => {
+    mockedUseProfile.mockReturnValue({
+      isLoading: false,
+      isError: false,
+      data: { ...baseProfile, trainingLocation: 'gym' as const },
+    } as unknown as ReturnType<typeof useProfile>);
+
+    await render(<ProfileScreen userId="user-1" />);
+
+    expect(screen.queryByTestId('option-equipment-dumbbells')).toBeNull();
+  });
+
+  it('clears equipment when the training location changes away from "home_equipped"', async () => {
+    mockedUseProfile.mockReturnValue({
+      isLoading: false,
+      isError: false,
+      data: baseProfile,
+    } as unknown as ReturnType<typeof useProfile>);
+
+    await render(<ProfileScreen userId="user-1" />);
+
+    await fireEvent.press(screen.getByTestId('option-location-gym'));
+    await fireEvent.press(screen.getByTestId('profile-save'));
+
+    expect(updateMutate).toHaveBeenCalledWith(
+      expect.objectContaining({ trainingLocation: 'gym', equipment: [] }),
+    );
   });
 
   it('saves edited fields with the expected numeric conversion', async () => {
@@ -105,9 +140,12 @@ describe('ProfileScreen', () => {
       heightCm: 180,
       weightKg: 82.5,
       sessionMinutes: 45,
+      availableDaysPerWeek: 4,
       goal: 'build_muscle',
       level: 'advanced',
+      trainingLocation: 'home_equipped',
       equipment: ['dumbbells'],
+      splitPreference: 'full_body',
     });
   });
 

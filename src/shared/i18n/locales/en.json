@@ -29,8 +29,11 @@
     "weightLabel": "Weight (kg)",
     "goalLabel": "Goal",
     "levelLabel": "Level",
-    "equipmentLabel": "Equipment",
+    "trainingLocationLabel": "Where do you train?",
+    "equipmentLabel": "Equipment you have at home",
+    "splitPreferenceLabel": "Workout style",
     "sessionMinutesLabel": "Session length (minutes)",
+    "availableDaysPerWeekLabel": "Days per week you can train",
     "save": "Save",
     "saved": "Profile saved",
     "loadError": "Couldn't load your profile.",
@@ -46,15 +49,24 @@
       "intermediate": "Intermediate",
       "advanced": "Advanced"
     },
+    "trainingLocations": {
+      "home_bodyweight": "Home (no equipment)",
+      "home_equipped": "Home (with equipment)",
+      "gym": "Gym",
+      "outdoor": "Outdoor"
+    },
     "equipment": {
-      "bodyweight": "Bodyweight only",
       "dumbbells": "Dumbbells",
       "barbell": "Barbell",
       "kettlebell": "Kettlebell",
       "resistance_bands": "Resistance bands",
       "pull_up_bar": "Pull-up bar",
-      "bench": "Bench",
-      "full_gym": "Full gym"
+      "bench": "Bench"
+    },
+    "splitPreferences": {
+      "full_body": "Full body",
+      "split": "Split",
+      "no_preference": "No preference"
     }
   }
 }
