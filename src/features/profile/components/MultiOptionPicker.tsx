@@ -5,13 +5,13 @@ import { pickerChipStyles as styles } from './pickerChipStyles';
 
 type Props<T extends string> = {
   options: readonly T[];
-  value: T | null;
-  onChange: (value: T) => void;
+  value: T[];
+  onChange: (value: T[]) => void;
   labelKey: (option: T) => string;
   testIDPrefix: string;
 };
 
-export function OptionPicker<T extends string>({
+export function MultiOptionPicker<T extends string>({
   options,
   value,
   onChange,
@@ -20,14 +20,18 @@ export function OptionPicker<T extends string>({
 }: Props<T>) {
   const { t } = useTranslation();
 
+  const toggle = (option: T) => {
+    onChange(value.includes(option) ? value.filter((item) => item !== option) : [...value, option]);
+  };
+
   return (
     <View style={styles.row}>
       {options.map((option) => {
-        const selected = option === value;
+        const selected = value.includes(option);
         return (
           <TouchableOpacity
             key={option}
-            onPress={() => onChange(option)}
+            onPress={() => toggle(option)}
             style={[styles.chip, selected && styles.chipSelected]}
             testID={`option-${testIDPrefix}-${option}`}
           >

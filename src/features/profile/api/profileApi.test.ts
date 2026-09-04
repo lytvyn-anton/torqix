@@ -84,6 +84,7 @@ describe('upsertProfile', () => {
       sessionMinutes: 45,
       goal: 'build_muscle',
       level: 'advanced',
+      equipment: ['dumbbells'],
     });
 
     expect(upsert).toHaveBeenCalledWith({
@@ -93,6 +94,7 @@ describe('upsertProfile', () => {
       weight_kg: 82.5,
       goal: 'build_muscle',
       level: 'advanced',
+      equipment: ['dumbbells'],
       session_minutes: 45,
     });
     expect(result.level).toBe('advanced');
@@ -114,6 +116,7 @@ describe('upsertProfile', () => {
         sessionMinutes: null,
         goal: null,
         level: null,
+        equipment: [],
       }),
     ).rejects.toBe(error);
   });

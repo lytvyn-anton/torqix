@@ -4,10 +4,19 @@ import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, View } from
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useSignOut } from '../../auth/hooks/useSignOut';
+import { MultiOptionPicker } from '../components/MultiOptionPicker';
 import { OptionPicker } from '../components/OptionPicker';
 import { useProfile } from '../hooks/useProfile';
 import { useUpdateProfile } from '../hooks/useUpdateProfile';
-import { GOAL_OPTIONS, LEVEL_OPTIONS, type Goal, type Level, type Profile } from '../types';
+import {
+  EQUIPMENT_OPTIONS,
+  GOAL_OPTIONS,
+  LEVEL_OPTIONS,
+  type Equipment,
+  type Goal,
+  type Level,
+  type Profile,
+} from '../types';
 
 // profiles.age / profiles.session_minutes are smallint columns: round to whole numbers and
 // reject negatives client-side so we never silently store a value Postgres would round/coerce.
@@ -83,6 +92,7 @@ function ProfileForm({ userId, profile }: FormProps) {
   const [sessionMinutes, setSessionMinutes] = useState(profile?.sessionMinutes?.toString() ?? '');
   const [goal, setGoal] = useState<Goal | null>(profile?.goal ?? null);
   const [level, setLevel] = useState<Level | null>(profile?.level ?? null);
+  const [equipment, setEquipment] = useState<Equipment[]>(profile?.equipment ?? []);
 
   const handleSave = () => {
     if (updateProfile.isPending) return;
@@ -93,6 +103,7 @@ function ProfileForm({ userId, profile }: FormProps) {
       sessionMinutes: toIntegerOrNull(sessionMinutes),
       goal,
       level,
+      equipment,
     });
   };
 
@@ -148,6 +159,7 @@ function ProfileForm({ userId, profile }: FormProps) {
           value={goal}
           onChange={setGoal}
           labelKey={(option) => `profile.goals.${option}`}
+          testIDPrefix="goal"
         />
 
         <Text style={styles.label}>{t('profile.levelLabel')}</Text>
@@ -156,6 +168,16 @@ function ProfileForm({ userId, profile }: FormProps) {
           value={level}
           onChange={setLevel}
           labelKey={(option) => `profile.levels.${option}`}
+          testIDPrefix="level"
+        />
+
+        <Text style={styles.label}>{t('profile.equipmentLabel')}</Text>
+        <MultiOptionPicker
+          options={EQUIPMENT_OPTIONS}
+          value={equipment}
+          onChange={setEquipment}
+          labelKey={(option) => `profile.equipment.${option}`}
+          testIDPrefix="equipment"
         />
 
         {updateProfile.isError && <Text style={styles.error}>{t('profile.saveError')}</Text>}

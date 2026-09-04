@@ -22,7 +22,7 @@ const baseProfile: Profile = {
   weightKg: 82.5,
   goal: 'build_muscle',
   level: 'intermediate',
-  equipment: [],
+  equipment: ['dumbbells'],
   sessionMinutes: 45,
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
@@ -97,7 +97,7 @@ describe('ProfileScreen', () => {
     await render(<ProfileScreen userId="user-1" />);
 
     await fireEvent.changeText(screen.getByTestId('profile-age'), '31');
-    await fireEvent.press(screen.getByTestId('option-advanced'));
+    await fireEvent.press(screen.getByTestId('option-level-advanced'));
     await fireEvent.press(screen.getByTestId('profile-save'));
 
     expect(updateMutate).toHaveBeenCalledWith({
@@ -107,7 +107,25 @@ describe('ProfileScreen', () => {
       sessionMinutes: 45,
       goal: 'build_muscle',
       level: 'advanced',
+      equipment: ['dumbbells'],
     });
+  });
+
+  it('toggles equipment selection on and off', async () => {
+    mockedUseProfile.mockReturnValue({
+      isLoading: false,
+      isError: false,
+      data: baseProfile,
+    } as unknown as ReturnType<typeof useProfile>);
+
+    await render(<ProfileScreen userId="user-1" />);
+
+    // baseProfile already has "dumbbells" selected; add "barbell" and remove "dumbbells".
+    await fireEvent.press(screen.getByTestId('option-equipment-barbell'));
+    await fireEvent.press(screen.getByTestId('option-equipment-dumbbells'));
+    await fireEvent.press(screen.getByTestId('profile-save'));
+
+    expect(updateMutate).toHaveBeenCalledWith(expect.objectContaining({ equipment: ['barbell'] }));
   });
 
   it('signs out when the sign-out action is pressed', async () => {

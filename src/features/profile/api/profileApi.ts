@@ -1,5 +1,5 @@
 import { supabase } from '../../../shared/api/supabase';
-import type { Goal, Level, Profile, ProfileInput } from '../types';
+import type { Equipment, Goal, Level, Profile, ProfileInput } from '../types';
 
 type ProfileRow = {
   id: string;
@@ -22,7 +22,7 @@ function fromRow(row: ProfileRow): Profile {
     weightKg: row.weight_kg,
     goal: row.goal as Goal | null,
     level: row.level as Level | null,
-    equipment: row.equipment,
+    equipment: row.equipment as Equipment[],
     sessionMinutes: row.session_minutes,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -49,6 +49,7 @@ export async function upsertProfile(userId: string, input: ProfileInput): Promis
       weight_kg: input.weightKg,
       goal: input.goal,
       level: input.level,
+      equipment: input.equipment,
       session_minutes: input.sessionMinutes,
     })
     .select()
