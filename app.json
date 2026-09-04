@@ -8,9 +8,14 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.anton.lytvyn02.torqix",
+      "infoPlist": {
+        "NSLocalNetworkUsageDescription": "This app connects to devices on your local network."
+      }
     },
     "android": {
+      "package": "com.anton.lytvyn02.torqix",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
