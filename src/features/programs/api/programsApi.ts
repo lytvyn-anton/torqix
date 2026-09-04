@@ -1,5 +1,5 @@
 import { supabase } from '../../../shared/api/supabase';
-import type { ActiveProgram } from '../types';
+import type { ActiveProgram, Program } from '../types';
 
 // "Active" is whichever of the user's non-template, status='active' programs was created
 // most recently. Program creation isn't built yet (see the "Manual workout program
@@ -16,4 +16,21 @@ export async function getActiveProgram(userId: string): Promise<ActiveProgram | 
     .maybeSingle();
   if (error) throw error;
   return data;
+}
+
+// All of a user's own (non-template) programs, newest first — the Programs tab's list.
+export async function getPrograms(userId: string): Promise<Program[]> {
+  const { data, error } = await supabase
+    .from('workout_programs')
+    .select('id, name, status, created_at')
+    .eq('user_id', userId)
+    .eq('is_template', false)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data.map((row) => ({
+    id: row.id,
+    name: row.name,
+    status: row.status,
+    createdAt: row.created_at,
+  }));
 }
