@@ -12,14 +12,19 @@ import {
   EQUIPMENT_OPTIONS,
   GOAL_OPTIONS,
   LEVEL_OPTIONS,
+  SPLIT_PREFERENCE_OPTIONS,
+  TRAINING_LOCATION_OPTIONS,
   type Equipment,
   type Goal,
   type Level,
   type Profile,
+  type SplitPreference,
+  type TrainingLocation,
 } from '../types';
 
-// profiles.age / profiles.session_minutes are smallint columns: round to whole numbers and
-// reject negatives client-side so we never silently store a value Postgres would round/coerce.
+// profiles.age / profiles.session_minutes / profiles.available_days_per_week are smallint
+// columns: round to whole numbers and reject negatives client-side so we never silently store
+// a value Postgres would round/coerce.
 function toIntegerOrNull(value: string): number | null {
   if (!value.trim()) return null;
   const parsed = Number(value);
@@ -90,9 +95,18 @@ function ProfileForm({ userId, profile }: FormProps) {
   const [heightCm, setHeightCm] = useState(profile?.heightCm?.toString() ?? '');
   const [weightKg, setWeightKg] = useState(profile?.weightKg?.toString() ?? '');
   const [sessionMinutes, setSessionMinutes] = useState(profile?.sessionMinutes?.toString() ?? '');
+  const [availableDaysPerWeek, setAvailableDaysPerWeek] = useState(
+    profile?.availableDaysPerWeek?.toString() ?? '',
+  );
   const [goal, setGoal] = useState<Goal | null>(profile?.goal ?? null);
   const [level, setLevel] = useState<Level | null>(profile?.level ?? null);
+  const [trainingLocation, setTrainingLocation] = useState<TrainingLocation | null>(
+    profile?.trainingLocation ?? null,
+  );
   const [equipment, setEquipment] = useState<Equipment[]>(profile?.equipment ?? []);
+  const [splitPreference, setSplitPreference] = useState<SplitPreference | null>(
+    profile?.splitPreference ?? null,
+  );
 
   const handleSave = () => {
     if (updateProfile.isPending) return;
@@ -101,9 +115,14 @@ function ProfileForm({ userId, profile }: FormProps) {
       heightCm: toDecimalOrNull(heightCm),
       weightKg: toDecimalOrNull(weightKg),
       sessionMinutes: toIntegerOrNull(sessionMinutes),
+      availableDaysPerWeek: toIntegerOrNull(availableDaysPerWeek),
       goal,
       level,
-      equipment,
+      trainingLocation,
+      // Equipment only means something for "home_equipped" — clear it if the user picks a
+      // different location so we don't persist a stale checklist from a prior choice.
+      equipment: trainingLocation === 'home_equipped' ? equipment : [],
+      splitPreference,
     });
   };
 
@@ -153,6 +172,15 @@ function ProfileForm({ userId, profile }: FormProps) {
           testID="profile-session-minutes"
         />
 
+        <Text style={styles.label}>{t('profile.availableDaysPerWeekLabel')}</Text>
+        <TextInput
+          style={styles.input}
+          value={availableDaysPerWeek}
+          onChangeText={setAvailableDaysPerWeek}
+          keyboardType="number-pad"
+          testID="profile-available-days-per-week"
+        />
+
         <Text style={styles.label}>{t('profile.goalLabel')}</Text>
         <OptionPicker
           options={GOAL_OPTIONS}
@@ -171,13 +199,35 @@ function ProfileForm({ userId, profile }: FormProps) {
           testIDPrefix="level"
         />
 
-        <Text style={styles.label}>{t('profile.equipmentLabel')}</Text>
-        <MultiOptionPicker
-          options={EQUIPMENT_OPTIONS}
-          value={equipment}
-          onChange={setEquipment}
-          labelKey={(option) => `profile.equipment.${option}`}
-          testIDPrefix="equipment"
+        <Text style={styles.label}>{t('profile.trainingLocationLabel')}</Text>
+        <OptionPicker
+          options={TRAINING_LOCATION_OPTIONS}
+          value={trainingLocation}
+          onChange={setTrainingLocation}
+          labelKey={(option) => `profile.trainingLocations.${option}`}
+          testIDPrefix="location"
+        />
+
+        {trainingLocation === 'home_equipped' && (
+          <>
+            <Text style={styles.label}>{t('profile.equipmentLabel')}</Text>
+            <MultiOptionPicker
+              options={EQUIPMENT_OPTIONS}
+              value={equipment}
+              onChange={setEquipment}
+              labelKey={(option) => `profile.equipment.${option}`}
+              testIDPrefix="equipment"
+            />
+          </>
+        )}
+
+        <Text style={styles.label}>{t('profile.splitPreferenceLabel')}</Text>
+        <OptionPicker
+          options={SPLIT_PREFERENCE_OPTIONS}
+          value={splitPreference}
+          onChange={setSplitPreference}
+          labelKey={(option) => `profile.splitPreferences.${option}`}
+          testIDPrefix="split"
         />
 
         {updateProfile.isError && <Text style={styles.error}>{t('profile.saveError')}</Text>}

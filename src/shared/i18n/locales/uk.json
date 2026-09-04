@@ -29,8 +29,11 @@
     "weightLabel": "Вага (кг)",
     "goalLabel": "Мета",
     "levelLabel": "Рівень",
-    "equipmentLabel": "Обладнання",
+    "trainingLocationLabel": "Де тренуєшся?",
+    "equipmentLabel": "Яке обладнання є вдома",
+    "splitPreferenceLabel": "Формат тренувань",
     "sessionMinutesLabel": "Тривалість тренування (хв)",
+    "availableDaysPerWeekLabel": "Скільки днів на тиждень можеш тренуватись",
     "save": "Зберегти",
     "saved": "Профіль збережено",
     "loadError": "Не вдалося завантажити профіль.",
@@ -46,15 +49,24 @@
       "intermediate": "Середній",
       "advanced": "Просунутий"
     },
+    "trainingLocations": {
+      "home_bodyweight": "Вдома (без обладнання)",
+      "home_equipped": "Вдома (з обладнанням)",
+      "gym": "Зал",
+      "outdoor": "На вулиці"
+    },
     "equipment": {
-      "bodyweight": "Тільки власна вага",
       "dumbbells": "Гантелі",
       "barbell": "Штанга",
       "kettlebell": "Гиря",
       "resistance_bands": "Резинки",
       "pull_up_bar": "Турнік",
-      "bench": "Лавка",
-      "full_gym": "Повний спортзал"
+      "bench": "Лавка"
+    },
+    "splitPreferences": {
+      "full_body": "Фулбаді",
+      "split": "Спліт",
+      "no_preference": "Без різниці"
     }
   }
 }
