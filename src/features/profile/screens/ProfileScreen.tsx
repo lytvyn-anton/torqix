@@ -1,6 +1,13 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useSignOut } from '../../auth/hooks/useSignOut';
@@ -65,15 +72,16 @@ export function ProfileScreen({ userId }: Props) {
     return (
       <SafeAreaView style={styles.centered} testID="profile-load-error">
         <Text style={styles.error}>{t('profile.loadError')}</Text>
-        <Text
-          style={styles.signOut}
+        <TouchableOpacity
           onPress={() => {
             if (!signOut.isPending) signOut.mutate();
           }}
+          disabled={signOut.isPending}
           testID="profile-load-error-sign-out"
+          accessibilityRole="button"
         >
-          {t('auth.signOut')}
-        </Text>
+          <Text style={styles.signOut}>{t('auth.signOut')}</Text>
+        </TouchableOpacity>
       </SafeAreaView>
     );
   }
@@ -233,24 +241,26 @@ function ProfileForm({ userId, profile }: FormProps) {
         {updateProfile.isError && <Text style={styles.error}>{t('profile.saveError')}</Text>}
         {updateProfile.isSuccess && <Text testID="profile-saved">{t('profile.saved')}</Text>}
 
-        <View style={[styles.saveButton, updateProfile.isPending && styles.buttonDisabled]}>
-          <Text
-            style={styles.saveButtonText}
-            onPress={handleSave}
-            testID="profile-save"
-            accessibilityRole="button"
-          >
-            {t('profile.save')}
-          </Text>
-        </View>
-
-        <Text
-          style={[styles.signOut, signOut.isPending && styles.buttonDisabled]}
-          onPress={handleSignOut}
-          testID="profile-sign-out"
+        <TouchableOpacity
+          style={[styles.saveButton, updateProfile.isPending && styles.buttonDisabled]}
+          onPress={handleSave}
+          disabled={updateProfile.isPending}
+          testID="profile-save"
+          accessibilityRole="button"
         >
-          {t('auth.signOut')}
-        </Text>
+          <Text style={styles.saveButtonText}>{t('profile.save')}</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={handleSignOut}
+          disabled={signOut.isPending}
+          testID="profile-sign-out"
+          accessibilityRole="button"
+        >
+          <Text style={[styles.signOut, signOut.isPending && styles.buttonDisabled]}>
+            {t('auth.signOut')}
+          </Text>
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
