@@ -11,6 +11,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useSignOut } from '../../auth/hooks/useSignOut';
+import { formStyles } from '../../../shared/theme/formStyles';
+import { colors, spacing } from '../../../shared/theme/theme';
 import { MultiOptionPicker } from '../components/MultiOptionPicker';
 import { OptionPicker } from '../components/OptionPicker';
 import { useProfile } from '../hooks/useProfile';
@@ -60,7 +62,7 @@ export function ProfileScreen({ userId }: Props) {
   if (profileQuery.isLoading) {
     return (
       <SafeAreaView style={styles.centered} testID="profile-loading">
-        <ActivityIndicator />
+        <ActivityIndicator color={colors.accent} />
       </SafeAreaView>
     );
   }
@@ -269,54 +271,42 @@ function ProfileForm({ userId, profile }: FormProps) {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: colors.background,
   },
   scroll: {
     flex: 1,
   },
   container: {
-    padding: 24,
-    gap: 8,
+    padding: spacing.xl,
+    gap: spacing.sm,
   },
   centered: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#fff',
-    gap: 16,
+    backgroundColor: colors.background,
+    gap: spacing.lg,
   },
   title: {
-    fontSize: 24,
-    fontWeight: '600',
-    marginBottom: 16,
+    ...formStyles.screenTitle,
+    marginBottom: spacing.lg,
   },
   label: {
     fontWeight: '600',
-    marginTop: 8,
+    marginTop: spacing.sm,
+    color: colors.textPrimary,
   },
-  input: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    padding: 12,
-  },
-  error: {
-    color: '#c00',
-  },
+  input: formStyles.input,
+  error: formStyles.error,
   saveButton: {
-    backgroundColor: '#111',
-    borderRadius: 8,
-    padding: 14,
-    alignItems: 'center',
-    marginTop: 24,
+    ...formStyles.primaryButton,
+    marginTop: spacing.xl,
   },
-  saveButtonText: {
-    color: '#fff',
-    fontWeight: '600',
-  },
+  saveButtonText: formStyles.primaryButtonText,
   signOut: {
     textAlign: 'center',
-    marginTop: 24,
+    marginTop: spacing.xl,
+    color: colors.textMuted,
   },
   buttonDisabled: {
     opacity: 0.5,

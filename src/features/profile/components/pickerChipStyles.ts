@@ -1,26 +1,29 @@
 import { StyleSheet } from 'react-native';
 
+import { colors, radii, spacing } from '../../../shared/theme/theme';
+
 export const pickerChipStyles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: spacing.sm,
   },
   chip: {
     borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 16,
+    borderColor: colors.borderInput,
+    borderRadius: radii.pill,
     paddingVertical: 6,
-    paddingHorizontal: 12,
+    paddingHorizontal: spacing.md,
+    backgroundColor: colors.surface,
   },
   chipSelected: {
-    backgroundColor: '#111',
-    borderColor: '#111',
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
   },
   chipText: {
-    color: '#111',
+    color: colors.textPrimary,
   },
   chipTextSelected: {
-    color: '#fff',
+    color: colors.onAccent,
   },
 });
