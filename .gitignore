@@ -42,8 +42,11 @@ yarn-error.*
 /ios
 /android
 
-# Claude Code assistant tooling (doesn't affect the app itself)
+# Claude Code assistant tooling and project instructions — local-only, not shipped to the
+# public repo. Recreate on a fresh clone if lost.
 .claude/
+CLAUDE.md
+AGENTS.md
 
 # Local project plan (not app code, tracked in Notion instead of GitHub)
 PLAN.md
