@@ -144,8 +144,6 @@ function ProfileForm({ userId, profile }: FormProps) {
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.container}>
-        <Text style={styles.title}>{t('profile.title')}</Text>
-
         <Text style={styles.label}>{t('profile.ageLabel')}</Text>
         <TextInput
           style={styles.input}
@@ -286,10 +284,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: colors.background,
     gap: spacing.lg,
-  },
-  title: {
-    ...formStyles.screenTitle,
-    marginBottom: spacing.lg,
   },
   label: {
     fontWeight: '600',
