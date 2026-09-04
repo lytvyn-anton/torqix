@@ -1,5 +1,49 @@
 {
-  "home": {
-    "greeting": "Ласкаво просимо до твого AI-тренера"
+  "auth": {
+    "emailLabel": "Email",
+    "passwordLabel": "Пароль",
+    "signInTitle": "Вхід",
+    "signInSubmit": "Увійти",
+    "signInSwitchPrompt": "Немає акаунту?",
+    "signInSwitchAction": "Зареєструватися",
+    "signUpTitle": "Створити акаунт",
+    "signUpSubmit": "Зареєструватися",
+    "signUpSwitchPrompt": "Вже маєш акаунт?",
+    "signUpSwitchAction": "Увійти",
+    "signUpConfirmationRequired": "Перевір пошту, щоб підтвердити акаунт, а потім увійди.",
+    "signUpAlreadyRegistered": "Акаунт з такою поштою вже існує.",
+    "signOut": "Вийти",
+    "errors": {
+      "emailRequired": "Введіть email",
+      "emailInvalid": "Введіть коректний email",
+      "passwordRequired": "Введіть пароль",
+      "passwordTooShort": "Пароль має містити щонайменше 6 символів",
+      "genericSignIn": "Не вдалося увійти. Перевірте email і пароль та спробуйте ще раз.",
+      "genericSignUp": "Не вдалося створити акаунт. Спробуйте ще раз."
+    }
+  },
+  "profile": {
+    "title": "Профіль",
+    "ageLabel": "Вік",
+    "heightLabel": "Зріст (см)",
+    "weightLabel": "Вага (кг)",
+    "goalLabel": "Мета",
+    "levelLabel": "Рівень",
+    "sessionMinutesLabel": "Тривалість тренування (хв)",
+    "save": "Зберегти",
+    "saved": "Профіль збережено",
+    "loadError": "Не вдалося завантажити профіль.",
+    "saveError": "Не вдалося зберегти профіль. Спробуйте ще раз.",
+    "goals": {
+      "lose_weight": "Схуднення",
+      "build_muscle": "Набір м'язової маси",
+      "improve_endurance": "Витривалість",
+      "general_fitness": "Загальна форма"
+    },
+    "levels": {
+      "beginner": "Початківець",
+      "intermediate": "Середній",
+      "advanced": "Просунутий"
+    }
   }
 }

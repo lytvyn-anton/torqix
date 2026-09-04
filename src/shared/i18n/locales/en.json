@@ -1,5 +1,49 @@
 {
-  "home": {
-    "greeting": "Welcome to your AI-powered training companion"
+  "auth": {
+    "emailLabel": "Email",
+    "passwordLabel": "Password",
+    "signInTitle": "Sign in",
+    "signInSubmit": "Sign in",
+    "signInSwitchPrompt": "Don't have an account?",
+    "signInSwitchAction": "Sign up",
+    "signUpTitle": "Create account",
+    "signUpSubmit": "Sign up",
+    "signUpSwitchPrompt": "Already have an account?",
+    "signUpSwitchAction": "Sign in",
+    "signUpConfirmationRequired": "Check your email to confirm your account, then sign in.",
+    "signUpAlreadyRegistered": "An account with this email already exists.",
+    "signOut": "Sign out",
+    "errors": {
+      "emailRequired": "Email is required",
+      "emailInvalid": "Enter a valid email",
+      "passwordRequired": "Password is required",
+      "passwordTooShort": "Password must be at least 6 characters",
+      "genericSignIn": "Couldn't sign in. Check your email and password and try again.",
+      "genericSignUp": "Couldn't create your account. Please try again."
+    }
+  },
+  "profile": {
+    "title": "Profile",
+    "ageLabel": "Age",
+    "heightLabel": "Height (cm)",
+    "weightLabel": "Weight (kg)",
+    "goalLabel": "Goal",
+    "levelLabel": "Level",
+    "sessionMinutesLabel": "Session length (minutes)",
+    "save": "Save",
+    "saved": "Profile saved",
+    "loadError": "Couldn't load your profile.",
+    "saveError": "Couldn't save your profile. Please try again.",
+    "goals": {
+      "lose_weight": "Lose weight",
+      "build_muscle": "Build muscle",
+      "improve_endurance": "Improve endurance",
+      "general_fitness": "General fitness"
+    },
+    "levels": {
+      "beginner": "Beginner",
+      "intermediate": "Intermediate",
+      "advanced": "Advanced"
+    }
   }
 }
