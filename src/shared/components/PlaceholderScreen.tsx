@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { colors, spacing } from '../theme/theme';
 
 // Generic "not built yet" tab body — used by tabs whose real screen has its own tracked
-// task (Programs, History) so the nav shell can ship before that task lands.
+// task (History) so the nav shell can ship before that task lands.
 type Props = {
   message: string;
   testID: string;

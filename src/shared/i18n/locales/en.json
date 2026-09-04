@@ -79,7 +79,10 @@
   },
   "programs": {
     "title": "Programs",
-    "comingSoon": "Program creation is coming soon."
+    "loadError": "Couldn't load your programs.",
+    "emptyTitle": "No programs yet",
+    "emptyBody": "Program creation is coming soon.",
+    "statusArchived": "Archived"
   },
   "history": {
     "title": "History",
