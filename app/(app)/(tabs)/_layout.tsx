@@ -1,6 +1,8 @@
-import { Tabs } from 'expo-router';
+import { BlurView } from 'expo-blur';
+import { Tabs } from 'expo-router/js-tabs';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
+import { StyleSheet } from 'react-native';
 
 import { ProfileAvatarButton } from '../../../src/features/profile/components/ProfileAvatarButton';
 import {
@@ -10,7 +12,7 @@ import {
   TodayIcon,
   type TabIconProps,
 } from '../../../src/shared/components/icons/TabIcons';
-import { colors } from '../../../src/shared/theme/theme';
+import { colors, shadows } from '../../../src/shared/theme/theme';
 
 const TABS: { name: string; titleKey: string; Icon: (props: TabIconProps) => ReactNode }[] = [
   { name: 'index', titleKey: 'today.title', Icon: TodayIcon },
@@ -31,7 +33,20 @@ export default function TabsLayout() {
         headerTintColor: colors.textPrimary,
         tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.textMuted,
-        tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border },
+        // Floating + transparent so tabBarBackground's blur shows content scrolling underneath,
+        // like iOS's native translucent tab bar. Screens with content pinned to the bottom edge
+        // (e.g. CoachScreen's composer) or a scrollable list (ProgramsScreen) add their own
+        // bottom offset via useBottomTabBarHeight() to avoid sitting behind it.
+        tabBarStyle: {
+          position: 'absolute',
+          backgroundColor: 'transparent',
+          borderTopWidth: StyleSheet.hairlineWidth,
+          borderTopColor: colors.border,
+          ...shadows.tabBar,
+        },
+        tabBarBackground: () => (
+          <BlurView intensity={80} tint="light" style={StyleSheet.absoluteFill} />
+        ),
       }}
     >
       {TABS.map(({ name, titleKey, Icon }) => (
