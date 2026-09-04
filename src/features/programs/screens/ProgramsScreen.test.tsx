@@ -1,4 +1,6 @@
 import { render, screen } from '@testing-library/react-native';
+import { BottomTabBarHeightContext } from 'expo-router/js-tabs';
+import type { ReactElement } from 'react';
 
 import '../../../shared/i18n';
 import { usePrograms } from '../hooks/usePrograms';
@@ -8,6 +10,14 @@ jest.mock('../hooks/usePrograms', () => ({ usePrograms: jest.fn() }));
 
 const mockedUsePrograms = jest.mocked(usePrograms);
 
+// ProgramsScreen reads useBottomTabBarHeight(), which throws outside a real Bottom Tab
+// Navigator — stand in the value it'd get there since these tests render it standalone.
+function renderWithTabBar(ui: ReactElement) {
+  return render(
+    <BottomTabBarHeightContext.Provider value={83}>{ui}</BottomTabBarHeightContext.Provider>,
+  );
+}
+
 describe('ProgramsScreen', () => {
   it('shows a loading indicator while programs are loading', async () => {
     mockedUsePrograms.mockReturnValue({
@@ -16,7 +26,7 @@ describe('ProgramsScreen', () => {
       data: undefined,
     } as unknown as ReturnType<typeof usePrograms>);
 
-    await render(<ProgramsScreen userId="user-1" />);
+    await renderWithTabBar(<ProgramsScreen userId="user-1" />);
 
     expect(screen.getByTestId('programs-loading')).toBeTruthy();
   });
@@ -28,7 +38,7 @@ describe('ProgramsScreen', () => {
       data: undefined,
     } as unknown as ReturnType<typeof usePrograms>);
 
-    await render(<ProgramsScreen userId="user-1" />);
+    await renderWithTabBar(<ProgramsScreen userId="user-1" />);
 
     expect(screen.getByTestId('programs-load-error')).toBeTruthy();
   });
@@ -42,7 +52,7 @@ describe('ProgramsScreen', () => {
       ],
     } as unknown as ReturnType<typeof usePrograms>);
 
-    await render(<ProgramsScreen userId="user-1" />);
+    await renderWithTabBar(<ProgramsScreen userId="user-1" />);
 
     expect(screen.queryByTestId('programs-load-error')).toBeNull();
     expect(screen.getByTestId('programs-list')).toBeTruthy();
@@ -55,7 +65,7 @@ describe('ProgramsScreen', () => {
       data: [],
     } as unknown as ReturnType<typeof usePrograms>);
 
-    await render(<ProgramsScreen userId="user-1" />);
+    await renderWithTabBar(<ProgramsScreen userId="user-1" />);
 
     expect(screen.getByTestId('programs-empty')).toBeTruthy();
   });
@@ -70,7 +80,7 @@ describe('ProgramsScreen', () => {
       ],
     } as unknown as ReturnType<typeof usePrograms>);
 
-    await render(<ProgramsScreen userId="user-1" />);
+    await renderWithTabBar(<ProgramsScreen userId="user-1" />);
 
     expect(screen.getByTestId('program-card-program-1')).toBeTruthy();
     expect(screen.getByText('Push / Pull / Legs')).toBeTruthy();

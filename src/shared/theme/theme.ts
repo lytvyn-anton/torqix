@@ -34,6 +34,18 @@ export const spacing = {
   xl: 24,
 } as const;
 
+// Cast upward (negative height) since these sit on bottom-edge surfaces like the tab bar —
+// the shadow should read above the surface, not below it.
+export const shadows = {
+  tabBar: {
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+} as const;
+
 // Manrope weights loaded via useAppReady (src/shared/hooks/useAppReady.ts). Apply to
 // headings, titles and primary button labels; leave body/meta text on the system font
 // (unchanged from before). Pair fontFamily with the matching numeric fontWeight below so

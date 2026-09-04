@@ -1,3 +1,4 @@
+import { useBottomTabBarHeight } from 'expo-router/js-tabs';
 import { useTranslation } from 'react-i18next';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -8,6 +9,7 @@ import { colors, fonts, radii, spacing } from '../../../shared/theme/theme';
 // now so the bottom nav has all 4 tabs wired for Phase 2.
 export function CoachScreen() {
   const { t } = useTranslation();
+  const tabBarHeight = useBottomTabBarHeight();
 
   return (
     <View style={styles.container} testID="coach-placeholder">
@@ -19,7 +21,7 @@ export function CoachScreen() {
       <View style={styles.badge}>
         <Text style={styles.badgeText}>{t('coach.comingSoonBadge')}</Text>
       </View>
-      <View style={styles.composer}>
+      <View style={[styles.composer, { bottom: spacing.xl + tabBarHeight }]}>
         <Text style={styles.composerPlaceholder}>{t('coach.messagePlaceholder')}</Text>
       </View>
     </View>
@@ -73,7 +75,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: spacing.xl,
     right: spacing.xl,
-    bottom: spacing.xl,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radii.xl,
