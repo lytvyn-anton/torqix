@@ -68,5 +68,28 @@
       "split": "Split",
       "no_preference": "No preference"
     }
+  },
+  "today": {
+    "title": "Today",
+    "emptyTitle": "No active program",
+    "emptyBody": "Pick a program to see today's workout here",
+    "emptyCta": "Choose a Program",
+    "activeProgramLabel": "Active program",
+    "loadError": "Couldn't load your program."
+  },
+  "programs": {
+    "title": "Programs",
+    "comingSoon": "Program creation is coming soon."
+  },
+  "history": {
+    "title": "History",
+    "comingSoon": "Workout history is coming soon."
+  },
+  "coach": {
+    "title": "Coach",
+    "comingSoonTitle": "Your AI coach is coming",
+    "comingSoonBody": "Ask about your program, get form cues, and let it adjust your plan based on how your workouts are going.",
+    "comingSoonBadge": "Arriving in Phase 4",
+    "messagePlaceholder": "Message your coach"
   }
 }
