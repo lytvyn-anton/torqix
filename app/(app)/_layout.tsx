@@ -21,6 +21,16 @@ export default function AppLayout() {
           headerTintColor: colors.textPrimary,
         }}
       />
+      <Stack.Screen
+        name="program-create"
+        options={{
+          headerShown: true,
+          title: t('programs.createTitle'),
+          headerStyle: { backgroundColor: colors.background },
+          headerShadowVisible: false,
+          headerTintColor: colors.textPrimary,
+        }}
+      />
     </Stack>
   );
 }
