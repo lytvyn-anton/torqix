@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useSignOut } from '../../auth/hooks/useSignOut';
 import { OptionPicker } from '../components/OptionPicker';
@@ -37,9 +38,9 @@ export function ProfileScreen({ userId }: Props) {
 
   if (profileQuery.isLoading) {
     return (
-      <View style={styles.centered} testID="profile-loading">
+      <SafeAreaView style={styles.centered} testID="profile-loading">
         <ActivityIndicator />
-      </View>
+      </SafeAreaView>
     );
   }
 
@@ -48,7 +49,7 @@ export function ProfileScreen({ userId }: Props) {
   // form and discard whatever the user was in the middle of editing.
   if (profileQuery.isError && profileQuery.data === undefined) {
     return (
-      <View style={styles.centered} testID="profile-load-error">
+      <SafeAreaView style={styles.centered} testID="profile-load-error">
         <Text style={styles.error}>{t('profile.loadError')}</Text>
         <Text
           style={styles.signOut}
@@ -59,7 +60,7 @@ export function ProfileScreen({ userId }: Props) {
         >
           {t('auth.signOut')}
         </Text>
-      </View>
+      </SafeAreaView>
     );
   }
 
@@ -101,87 +102,96 @@ function ProfileForm({ userId, profile }: FormProps) {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>{t('profile.title')}</Text>
+    <SafeAreaView style={styles.safeArea}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.container}>
+        <Text style={styles.title}>{t('profile.title')}</Text>
 
-      <Text style={styles.label}>{t('profile.ageLabel')}</Text>
-      <TextInput
-        style={styles.input}
-        value={age}
-        onChangeText={setAge}
-        keyboardType="number-pad"
-        testID="profile-age"
-      />
+        <Text style={styles.label}>{t('profile.ageLabel')}</Text>
+        <TextInput
+          style={styles.input}
+          value={age}
+          onChangeText={setAge}
+          keyboardType="number-pad"
+          testID="profile-age"
+        />
 
-      <Text style={styles.label}>{t('profile.heightLabel')}</Text>
-      <TextInput
-        style={styles.input}
-        value={heightCm}
-        onChangeText={setHeightCm}
-        keyboardType="decimal-pad"
-        testID="profile-height"
-      />
+        <Text style={styles.label}>{t('profile.heightLabel')}</Text>
+        <TextInput
+          style={styles.input}
+          value={heightCm}
+          onChangeText={setHeightCm}
+          keyboardType="decimal-pad"
+          testID="profile-height"
+        />
 
-      <Text style={styles.label}>{t('profile.weightLabel')}</Text>
-      <TextInput
-        style={styles.input}
-        value={weightKg}
-        onChangeText={setWeightKg}
-        keyboardType="decimal-pad"
-        testID="profile-weight"
-      />
+        <Text style={styles.label}>{t('profile.weightLabel')}</Text>
+        <TextInput
+          style={styles.input}
+          value={weightKg}
+          onChangeText={setWeightKg}
+          keyboardType="decimal-pad"
+          testID="profile-weight"
+        />
 
-      <Text style={styles.label}>{t('profile.sessionMinutesLabel')}</Text>
-      <TextInput
-        style={styles.input}
-        value={sessionMinutes}
-        onChangeText={setSessionMinutes}
-        keyboardType="number-pad"
-        testID="profile-session-minutes"
-      />
+        <Text style={styles.label}>{t('profile.sessionMinutesLabel')}</Text>
+        <TextInput
+          style={styles.input}
+          value={sessionMinutes}
+          onChangeText={setSessionMinutes}
+          keyboardType="number-pad"
+          testID="profile-session-minutes"
+        />
 
-      <Text style={styles.label}>{t('profile.goalLabel')}</Text>
-      <OptionPicker
-        options={GOAL_OPTIONS}
-        value={goal}
-        onChange={setGoal}
-        labelKey={(option) => `profile.goals.${option}`}
-      />
+        <Text style={styles.label}>{t('profile.goalLabel')}</Text>
+        <OptionPicker
+          options={GOAL_OPTIONS}
+          value={goal}
+          onChange={setGoal}
+          labelKey={(option) => `profile.goals.${option}`}
+        />
 
-      <Text style={styles.label}>{t('profile.levelLabel')}</Text>
-      <OptionPicker
-        options={LEVEL_OPTIONS}
-        value={level}
-        onChange={setLevel}
-        labelKey={(option) => `profile.levels.${option}`}
-      />
+        <Text style={styles.label}>{t('profile.levelLabel')}</Text>
+        <OptionPicker
+          options={LEVEL_OPTIONS}
+          value={level}
+          onChange={setLevel}
+          labelKey={(option) => `profile.levels.${option}`}
+        />
 
-      {updateProfile.isError && <Text style={styles.error}>{t('profile.saveError')}</Text>}
-      {updateProfile.isSuccess && <Text testID="profile-saved">{t('profile.saved')}</Text>}
+        {updateProfile.isError && <Text style={styles.error}>{t('profile.saveError')}</Text>}
+        {updateProfile.isSuccess && <Text testID="profile-saved">{t('profile.saved')}</Text>}
 
-      <View style={[styles.saveButton, updateProfile.isPending && styles.buttonDisabled]}>
+        <View style={[styles.saveButton, updateProfile.isPending && styles.buttonDisabled]}>
+          <Text
+            style={styles.saveButtonText}
+            onPress={handleSave}
+            testID="profile-save"
+            accessibilityRole="button"
+          >
+            {t('profile.save')}
+          </Text>
+        </View>
+
         <Text
-          style={styles.saveButtonText}
-          onPress={handleSave}
-          testID="profile-save"
-          accessibilityRole="button"
+          style={[styles.signOut, signOut.isPending && styles.buttonDisabled]}
+          onPress={handleSignOut}
+          testID="profile-sign-out"
         >
-          {t('profile.save')}
+          {t('auth.signOut')}
         </Text>
-      </View>
-
-      <Text
-        style={[styles.signOut, signOut.isPending && styles.buttonDisabled]}
-        onPress={handleSignOut}
-        testID="profile-sign-out"
-      >
-        {t('auth.signOut')}
-      </Text>
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  scroll: {
+    flex: 1,
+  },
   container: {
     padding: 24,
     gap: 8,

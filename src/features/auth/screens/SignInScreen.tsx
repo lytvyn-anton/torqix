@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 import { authFormStyles as styles } from '../authFormStyles';
+import { AuthScreenContainer } from '../components/AuthScreenContainer';
 import { useAuthForm } from '../hooks/useAuthForm';
 import { useSignIn } from '../hooks/useSignIn';
 
@@ -14,7 +15,7 @@ export function SignInScreen() {
   );
 
   return (
-    <View style={styles.container}>
+    <AuthScreenContainer>
       <Text style={styles.title}>{t('auth.signInTitle')}</Text>
 
       <TextInput
@@ -55,6 +56,6 @@ export function SignInScreen() {
           <Text style={styles.switchAction}>{t('auth.signInSwitchAction')}</Text>
         </Link>
       </View>
-    </View>
+    </AuthScreenContainer>
   );
 }
