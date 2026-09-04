@@ -1,44 +1,34 @@
 import { StyleSheet } from 'react-native';
 
+import { colors, spacing } from '../../shared/theme/theme';
+import { formStyles } from '../../shared/theme/formStyles';
+
 export const authFormStyles = StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: 'center',
-    padding: 24,
-    gap: 12,
-    backgroundColor: '#fff',
+    padding: spacing.xl,
+    gap: spacing.md,
+    backgroundColor: colors.background,
   },
   title: {
-    fontSize: 24,
-    fontWeight: '600',
-    marginBottom: 12,
+    ...formStyles.screenTitle,
+    marginBottom: spacing.md,
   },
-  input: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    padding: 12,
-  },
-  error: {
-    color: '#c00',
-  },
+  input: formStyles.input,
+  error: formStyles.error,
   submitButton: {
-    backgroundColor: '#111',
-    borderRadius: 8,
-    padding: 14,
-    alignItems: 'center',
-    marginTop: 8,
+    ...formStyles.primaryButton,
+    marginTop: spacing.sm,
   },
-  submitButtonText: {
-    color: '#fff',
-    fontWeight: '600',
-  },
+  submitButtonText: formStyles.primaryButtonText,
   switchRow: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: 16,
+    marginTop: spacing.lg,
   },
   switchAction: {
     fontWeight: '600',
+    color: colors.accentDark,
   },
 });
