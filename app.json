@@ -3,6 +3,7 @@
     "name": "torqix",
     "slug": "torqix",
     "version": "1.0.0",
+    "scheme": "torqix",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -21,6 +22,9 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "plugins": ["expo-localization"]
+    "plugins": ["expo-localization", "expo-router"],
+    "experiments": {
+      "typedRoutes": true
+    }
   }
 }
