@@ -27,7 +27,17 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "plugins": ["expo-localization", "expo-router"],
+    "plugins": [
+      "expo-localization",
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "backgroundColor": "#F7F5F0"
+        }
+      ]
+    ],
     "experiments": {
       "typedRoutes": true
     }
