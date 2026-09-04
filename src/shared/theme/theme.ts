@@ -16,6 +16,10 @@ export const colors = {
   accentTint: 'rgba(111, 156, 130, 0.16)',
   onAccent: '#FFFFFF',
   error: '#B3453A',
+  // Layered over the tab bar's BlurView — the app's palette is all cream/white, so blur alone
+  // barely shows against it; a translucent white panel on top gives the bar a distinct "glass"
+  // read instead of blending into the background.
+  surfaceTranslucent: 'rgba(255, 255, 255, 0.55)',
 } as const;
 
 export const radii = {
@@ -39,10 +43,10 @@ export const spacing = {
 export const shadows = {
   tabBar: {
     shadowColor: '#000000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 8,
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.16,
+    shadowRadius: 16,
+    elevation: 12,
   },
 } as const;
 

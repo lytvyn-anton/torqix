@@ -60,8 +60,15 @@ export default function TabsLayout() {
           borderTopColor: colors.border,
           ...shadows.tabBar,
         },
+        // Blur alone barely reads against this app's all-cream/white palette — there's rarely
+        // enough contrast behind the bar to see through. Layering a translucent white tint on
+        // top gives it a distinct "glass panel" look, matching how iOS's own system materials
+        // combine blur with a tint rather than using raw blur.
         tabBarBackground: () => (
-          <BlurView intensity={80} tint="light" style={StyleSheet.absoluteFill} />
+          <View style={StyleSheet.absoluteFill}>
+            <BlurView intensity={80} tint="light" style={StyleSheet.absoluteFill} />
+            <View style={[StyleSheet.absoluteFill, styles.tabBarTint]} />
+          </View>
         ),
       }}
     >
@@ -84,5 +91,8 @@ const styles = StyleSheet.create({
   headerRight: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  tabBarTint: {
+    backgroundColor: colors.surfaceTranslucent,
   },
 });
