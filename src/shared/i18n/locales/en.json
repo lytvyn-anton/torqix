@@ -81,8 +81,18 @@
     "title": "Programs",
     "loadError": "Couldn't load your programs.",
     "emptyTitle": "No programs yet",
-    "emptyBody": "Program creation is coming soon.",
-    "statusArchived": "Archived"
+    "emptyBody": "Create your first program to get started.",
+    "statusArchived": "Archived",
+    "newProgram": "New",
+    "createTitle": "New program",
+    "nameLabel": "Program name",
+    "namePlaceholder": "e.g. Push / Pull / Legs",
+    "daysLabel": "Days",
+    "dayPlaceholder": "e.g. Push day",
+    "removeDay": "Remove day",
+    "addDay": "+ Add day",
+    "create": "Create program",
+    "createError": "Couldn't create the program. Try again."
   },
   "history": {
     "title": "History",

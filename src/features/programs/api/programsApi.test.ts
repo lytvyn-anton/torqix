@@ -1,5 +1,5 @@
 import { supabase } from '../../../shared/api/supabase';
-import { getActiveProgram, getPrograms } from './programsApi';
+import { createProgram, getActiveProgram, getPrograms } from './programsApi';
 
 jest.mock('../../../shared/api/supabase', () => ({
   supabase: {
@@ -98,5 +98,140 @@ describe('getPrograms', () => {
     mockProgramsQuery({ data: null, error });
 
     await expect(getPrograms('user-1')).rejects.toBe(error);
+  });
+});
+
+// Builds the mocked chains for createProgram's three sequential writes: workout_programs
+// insert().select().single() (program), program_days insert() (days), and workout_programs
+// update().eq().eq().neq() (archiving other active programs) — plus the
+// workout_programs delete().eq() used to clean up if the days insert fails.
+function mockCreateProgramFlow({
+  programResult,
+  daysResult = { error: null },
+  archiveResult = { error: null },
+  deleteResult = { error: null },
+}: {
+  programResult: { data: unknown; error: unknown };
+  daysResult?: { error: unknown };
+  archiveResult?: { error: unknown };
+  deleteResult?: { error: unknown };
+}) {
+  const single = jest.fn().mockResolvedValue(programResult);
+  const select = jest.fn().mockReturnValue({ single });
+  const insertProgram = jest.fn().mockReturnValue({ select });
+
+  const insertDays = jest.fn().mockResolvedValue(daysResult);
+
+  const archiveNeq = jest.fn().mockResolvedValue(archiveResult);
+  const archiveEqStatus = jest.fn().mockReturnValue({ neq: archiveNeq });
+  const archiveEqUser = jest.fn().mockReturnValue({ eq: archiveEqStatus });
+  const update = jest.fn().mockReturnValue({ eq: archiveEqUser });
+
+  const deleteEq = jest.fn().mockResolvedValue(deleteResult);
+  const deleteFn = jest.fn().mockReturnValue({ eq: deleteEq });
+
+  mockedFrom.mockImplementation(
+    (table: string) =>
+      (table === 'program_days'
+        ? { insert: insertDays }
+        : { insert: insertProgram, update, delete: deleteFn }) as never,
+  );
+
+  return {
+    insertProgram,
+    insertDays,
+    update,
+    archiveEqUser,
+    archiveEqStatus,
+    archiveNeq,
+    deleteFn,
+    deleteEq,
+  };
+}
+
+describe('createProgram', () => {
+  it('rejects an empty day list without touching the database', async () => {
+    const callsBefore = mockedFrom.mock.calls.length;
+
+    await expect(createProgram('user-1', { name: 'X', days: [] })).rejects.toThrow(
+      'createProgram requires at least one day',
+    );
+
+    expect(mockedFrom.mock.calls.length).toBe(callsBefore);
+  });
+
+  it('inserts the program, its days in order, archives other active programs, and returns the created program', async () => {
+    const { insertProgram, insertDays, update, archiveEqUser, archiveEqStatus, archiveNeq } =
+      mockCreateProgramFlow({
+        programResult: {
+          data: {
+            id: 'program-1',
+            name: 'Push / Pull / Legs',
+            status: 'active',
+            created_at: '2026-09-04',
+          },
+          error: null,
+        },
+      });
+
+    const result = await createProgram('user-1', {
+      name: 'Push / Pull / Legs',
+      days: ['Push day', 'Pull day'],
+    });
+
+    expect(insertProgram).toHaveBeenCalledWith({ user_id: 'user-1', name: 'Push / Pull / Legs' });
+    expect(insertDays).toHaveBeenCalledWith([
+      { program_id: 'program-1', name: 'Push day', order_index: 0 },
+      { program_id: 'program-1', name: 'Pull day', order_index: 1 },
+    ]);
+    expect(update).toHaveBeenCalledWith({ status: 'archived' });
+    expect(archiveEqUser).toHaveBeenCalledWith('user_id', 'user-1');
+    expect(archiveEqStatus).toHaveBeenCalledWith('status', 'active');
+    expect(archiveNeq).toHaveBeenCalledWith('id', 'program-1');
+    expect(result).toEqual({
+      id: 'program-1',
+      name: 'Push / Pull / Legs',
+      status: 'active',
+      createdAt: '2026-09-04',
+    });
+  });
+
+  it('throws when the program insert fails, without inserting days or archiving', async () => {
+    const error = new Error('rls denied');
+    const { insertDays, update } = mockCreateProgramFlow({ programResult: { data: null, error } });
+
+    await expect(createProgram('user-1', { name: 'X', days: ['Day 1'] })).rejects.toBe(error);
+    expect(insertDays).not.toHaveBeenCalled();
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('deletes the orphaned program and throws when the days insert fails', async () => {
+    const error = new Error('rls denied');
+    const { deleteFn, deleteEq, update } = mockCreateProgramFlow({
+      programResult: {
+        data: { id: 'program-1', name: 'X', status: 'active', created_at: '2026-09-04' },
+        error: null,
+      },
+      daysResult: { error },
+    });
+
+    await expect(createProgram('user-1', { name: 'X', days: ['Day 1'] })).rejects.toBe(error);
+    expect(deleteFn).toHaveBeenCalled();
+    expect(deleteEq).toHaveBeenCalledWith('id', 'program-1');
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('throws when archiving other active programs fails', async () => {
+    const error = new Error('rls denied');
+    const { deleteFn } = mockCreateProgramFlow({
+      programResult: {
+        data: { id: 'program-1', name: 'X', status: 'active', created_at: '2026-09-04' },
+        error: null,
+      },
+      archiveResult: { error },
+    });
+
+    await expect(createProgram('user-1', { name: 'X', days: ['Day 1'] })).rejects.toBe(error);
+    expect(deleteFn).not.toHaveBeenCalled();
   });
 });

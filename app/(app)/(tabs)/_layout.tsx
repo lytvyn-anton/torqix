@@ -2,8 +2,9 @@ import { BlurView } from 'expo-blur';
 import { Tabs } from 'expo-router/js-tabs';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
+import { NewProgramButton } from '../../../src/features/programs/components/NewProgramButton';
 import { ProfileAvatarButton } from '../../../src/features/profile/components/ProfileAvatarButton';
 import {
   CoachIcon,
@@ -14,9 +15,24 @@ import {
 } from '../../../src/shared/components/icons/TabIcons';
 import { colors, shadows } from '../../../src/shared/theme/theme';
 
-const TABS: { name: string; titleKey: string; Icon: (props: TabIconProps) => ReactNode }[] = [
+const TABS: {
+  name: string;
+  titleKey: string;
+  Icon: (props: TabIconProps) => ReactNode;
+  headerRight?: () => ReactNode;
+}[] = [
   { name: 'index', titleKey: 'today.title', Icon: TodayIcon },
-  { name: 'programs', titleKey: 'programs.title', Icon: ProgramsIcon },
+  {
+    name: 'programs',
+    titleKey: 'programs.title',
+    Icon: ProgramsIcon,
+    headerRight: () => (
+      <View style={styles.headerRight}>
+        <NewProgramButton />
+        <ProfileAvatarButton />
+      </View>
+    ),
+  },
   { name: 'history', titleKey: 'history.title', Icon: HistoryIcon },
   { name: 'coach', titleKey: 'coach.title', Icon: CoachIcon },
 ];
@@ -49,16 +65,24 @@ export default function TabsLayout() {
         ),
       }}
     >
-      {TABS.map(({ name, titleKey, Icon }) => (
+      {TABS.map(({ name, titleKey, Icon, headerRight }) => (
         <Tabs.Screen
           key={name}
           name={name}
           options={{
             title: t(titleKey),
             tabBarIcon: ({ color, size }) => <Icon color={color} size={size} />,
+            ...(headerRight ? { headerRight } : {}),
           }}
         />
       ))}
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+});
