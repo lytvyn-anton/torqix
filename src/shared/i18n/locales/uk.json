@@ -29,6 +29,7 @@
     "weightLabel": "Вага (кг)",
     "goalLabel": "Мета",
     "levelLabel": "Рівень",
+    "equipmentLabel": "Обладнання",
     "sessionMinutesLabel": "Тривалість тренування (хв)",
     "save": "Зберегти",
     "saved": "Профіль збережено",
@@ -44,6 +45,16 @@
       "beginner": "Початківець",
       "intermediate": "Середній",
       "advanced": "Просунутий"
+    },
+    "equipment": {
+      "bodyweight": "Тільки власна вага",
+      "dumbbells": "Гантелі",
+      "barbell": "Штанга",
+      "kettlebell": "Гиря",
+      "resistance_bands": "Резинки",
+      "pull_up_bar": "Турнік",
+      "bench": "Лавка",
+      "full_gym": "Повний спортзал"
     }
   }
 }

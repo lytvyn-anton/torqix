@@ -29,6 +29,7 @@
     "weightLabel": "Weight (kg)",
     "goalLabel": "Goal",
     "levelLabel": "Level",
+    "equipmentLabel": "Equipment",
     "sessionMinutesLabel": "Session length (minutes)",
     "save": "Save",
     "saved": "Profile saved",
@@ -44,6 +45,16 @@
       "beginner": "Beginner",
       "intermediate": "Intermediate",
       "advanced": "Advanced"
+    },
+    "equipment": {
+      "bodyweight": "Bodyweight only",
+      "dumbbells": "Dumbbells",
+      "barbell": "Barbell",
+      "kettlebell": "Kettlebell",
+      "resistance_bands": "Resistance bands",
+      "pull_up_bar": "Pull-up bar",
+      "bench": "Bench",
+      "full_gym": "Full gym"
     }
   }
 }
