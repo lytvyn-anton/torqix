@@ -1,5 +1,5 @@
 import { supabase } from '../../../shared/api/supabase';
-import type { ActiveProgram, CreateProgramInput, Program } from '../types';
+import type { ActiveProgram, CreateProgramInput, Program, ProgramDetail } from '../types';
 
 // "Active" is whichever of the user's non-template, status='active' programs was created
 // most recently.
@@ -31,6 +31,170 @@ export async function getPrograms(userId: string): Promise<Program[]> {
     status: row.status,
     createdAt: row.created_at,
   }));
+}
+
+type ProgramDetailRow = {
+  id: string;
+  name: string;
+  status: 'active' | 'archived';
+  created_at: string;
+  program_days: {
+    id: string;
+    name: string;
+    order_index: number;
+    program_day_exercises: {
+      exercise_id: string;
+      order_index: number;
+      sets: number | null;
+      reps: number | null;
+      target_weight: number | null;
+      exercises: { name: string } | null;
+    }[];
+  }[];
+};
+
+// A single program's full detail — name, status, and every day with its exercises (each
+// joined to the exercise catalog for its display name) — sorted by order_index, for the
+// program detail and edit screens.
+export async function getProgram(programId: string): Promise<ProgramDetail> {
+  const { data, error } = await supabase
+    .from('workout_programs')
+    .select(
+      'id, name, status, created_at, program_days(id, name, order_index, program_day_exercises(exercise_id, order_index, sets, reps, target_weight, exercises(name)))',
+    )
+    .eq('id', programId)
+    .single();
+  if (error) throw error;
+
+  const row = data as unknown as ProgramDetailRow;
+  return {
+    id: row.id,
+    name: row.name,
+    status: row.status,
+    createdAt: row.created_at,
+    days: [...(row.program_days ?? [])]
+      .sort((a, b) => a.order_index - b.order_index)
+      .map((day) => ({
+        id: day.id,
+        name: day.name,
+        exercises: [...(day.program_day_exercises ?? [])]
+          .sort((a, b) => a.order_index - b.order_index)
+          .map((exercise) => ({
+            exerciseId: exercise.exercise_id,
+            exerciseName: exercise.exercises?.name ?? '',
+            sets: exercise.sets,
+            reps: exercise.reps,
+            targetWeight: exercise.target_weight,
+          })),
+      })),
+  };
+}
+
+// Hard-deletes the program row; program_days and program_day_exercises cascade away via
+// their FKs. workout_sessions.program_day_id is ON DELETE SET NULL (not cascade), so any
+// session history already logged against this program survives with a blank day name —
+// see workoutsApi's programDayName, which already tolerates a null program_days join.
+export async function deleteProgram(programId: string): Promise<void> {
+  const { error } = await supabase.from('workout_programs').delete().eq('id', programId);
+  if (error) throw error;
+}
+
+// Replaces a program's name and its day/exercise list, matching input days to existing
+// ones by id (ProgramDetailDay.id, threaded through ProgramForm) rather than by name — an
+// unambiguous primary-key match, unlike a name, which two days can share or a rename can
+// change. An unchanged/renamed day that keeps its id also keeps any workout_sessions
+// already logged against it: workout_sessions.program_day_id is ON DELETE SET NULL (not
+// cascade), so a naive delete-all-days-then-reinsert would hand every day a fresh id on
+// every single edit, permanently blanking the day label on all of that program's history
+// the moment any unrelated field was changed. Only a day genuinely added fresh in the form
+// (no id) or removed from it loses its history association, which is unavoidable either way.
+//
+// Each day's exercises are still replaced wholesale rather than diffed — nothing else
+// references a program_day_exercises row by id, so there's no identity worth preserving
+// there, unlike the day rows themselves.
+export async function updateProgram(programId: string, input: CreateProgramInput): Promise<void> {
+  if (input.days.length === 0) {
+    throw new Error('updateProgram requires at least one day');
+  }
+
+  const { error: nameError } = await supabase
+    .from('workout_programs')
+    .update({ name: input.name })
+    .eq('id', programId);
+  if (nameError) throw nameError;
+
+  const { data: existingDays, error: existingDaysError } = await supabase
+    .from('program_days')
+    .select('id')
+    .eq('program_id', programId);
+  if (existingDaysError) throw existingDaysError;
+
+  // A day whose id isn't referenced by any input day was removed in the form; anything
+  // in input.days without a matching existing id (including every day with no id at all)
+  // gets a freshly inserted row below.
+  const existingIds = new Set(existingDays.map((day) => day.id));
+  const keptIds = new Set(
+    input.days.filter((day) => day.id && existingIds.has(day.id)).map((day) => day.id),
+  );
+  const idsToRemove = existingDays.filter((day) => !keptIds.has(day.id)).map((day) => day.id);
+
+  if (idsToRemove.length > 0) {
+    const { error: deleteRemovedError } = await supabase
+      .from('program_days')
+      .delete()
+      .in('id', idsToRemove);
+    if (deleteRemovedError) throw deleteRemovedError;
+  }
+
+  // Sequential rather than a single bulk write: each day needs to become either an update
+  // (matched, keeping its id) or an insert (new), and the resulting id is needed below to
+  // attach that day's exercises — day counts are small (a handful per program), so the
+  // extra round trips aren't worth a mixed-upsert workaround.
+  const dayIds: string[] = [];
+  for (const [index, day] of input.days.entries()) {
+    if (day.id && keptIds.has(day.id)) {
+      const { error } = await supabase
+        .from('program_days')
+        .update({ name: day.name, order_index: index })
+        .eq('id', day.id);
+      if (error) throw error;
+      dayIds.push(day.id);
+    } else {
+      const { data, error } = await supabase
+        .from('program_days')
+        .insert({ program_id: programId, name: day.name, order_index: index })
+        .select('id')
+        .single();
+      if (error) throw error;
+      dayIds.push(data.id);
+    }
+  }
+
+  // Clears every day's existing exercises (a no-op for freshly inserted days) before
+  // re-inserting the current set below.
+  const { error: deleteExercisesError } = await supabase
+    .from('program_day_exercises')
+    .delete()
+    .in('program_day_id', dayIds);
+  if (deleteExercisesError) throw deleteExercisesError;
+
+  const exerciseRows = input.days.flatMap((day, dayIndex) =>
+    day.exercises.map((exercise, exerciseIndex) => ({
+      program_day_id: dayIds[dayIndex],
+      exercise_id: exercise.exerciseId,
+      order_index: exerciseIndex,
+      sets: exercise.sets,
+      reps: exercise.reps,
+      target_weight: exercise.targetWeight,
+    })),
+  );
+
+  if (exerciseRows.length > 0) {
+    const { error: exercisesError } = await supabase
+      .from('program_day_exercises')
+      .insert(exerciseRows);
+    if (exercisesError) throw exercisesError;
+  }
 }
 
 // Deletes a program that failed partway through creation, cascading to any days/exercises

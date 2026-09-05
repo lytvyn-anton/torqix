@@ -84,6 +84,7 @@ export function ProgramsScreen({ userId }: Props) {
           program={item}
           locale={i18n.language}
           archivedLabel={t('programs.statusArchived')}
+          onPress={() => router.push(`/program/${item.id}`)}
         />
       )}
     />
@@ -94,16 +95,23 @@ function ProgramCard({
   program,
   locale,
   archivedLabel,
+  onPress,
 }: {
   program: Program;
   locale: string;
   archivedLabel: string;
+  onPress: () => void;
 }) {
   const { colors } = useTheme();
   const styles = useMemo(() => buildCardStyles(colors), [colors]);
 
   return (
-    <View style={styles.card} testID={`program-card-${program.id}`}>
+    <TouchableOpacity
+      style={styles.card}
+      onPress={onPress}
+      accessibilityRole="button"
+      testID={`program-card-${program.id}`}
+    >
       <View style={styles.cardHeader}>
         <Text style={styles.cardName}>{program.name}</Text>
         {program.status === 'archived' && (
@@ -117,7 +125,7 @@ function ProgramCard({
       <Text style={styles.cardDate}>
         {new Date(program.createdAt).toLocaleDateString(locale, { timeZone: 'UTC' })}
       </Text>
-    </View>
+    </TouchableOpacity>
   );
 }
 

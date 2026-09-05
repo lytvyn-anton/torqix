@@ -32,6 +32,26 @@ export default function AppLayout() {
           headerTintColor: colors.textPrimary,
         }}
       />
+      <Stack.Screen
+        name="program/[id]"
+        options={{
+          headerShown: true,
+          title: t('programs.detailTitle'),
+          headerStyle: { backgroundColor: colors.background },
+          headerShadowVisible: false,
+          headerTintColor: colors.textPrimary,
+        }}
+      />
+      <Stack.Screen
+        name="program-edit/[id]"
+        options={{
+          headerShown: true,
+          title: t('programs.editTitle'),
+          headerStyle: { backgroundColor: colors.background },
+          headerShadowVisible: false,
+          headerTintColor: colors.textPrimary,
+        }}
+      />
       <Stack.Screen name="workout-session" options={{ headerShown: false }} />
       <Stack.Screen name="workout-complete" options={{ headerShown: false }} />
       <Stack.Screen
