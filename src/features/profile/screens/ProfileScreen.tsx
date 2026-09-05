@@ -1,4 +1,3 @@
-import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -102,7 +101,6 @@ type FormProps = {
 
 function ProfileForm({ userId, profile }: FormProps) {
   const { t } = useTranslation();
-  const router = useRouter();
   const updateProfile = useUpdateProfile(userId);
   const signOut = useSignOut();
   const { colors } = useTheme();
@@ -152,15 +150,6 @@ function ProfileForm({ userId, profile }: FormProps) {
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.container}>
-        <TouchableOpacity
-          onPress={() => router.push('/settings')}
-          style={styles.settingsLink}
-          testID="profile-settings-link"
-          accessibilityRole="button"
-        >
-          <Text style={styles.settingsLinkText}>{t('settings.title')}</Text>
-        </TouchableOpacity>
-
         <Text style={styles.label}>{t('profile.ageLabel')}</Text>
         <TextInput
           style={formStyles.input}
@@ -314,16 +303,6 @@ function buildStyles(colors: ThemeColors) {
     },
     error: {
       color: colors.error,
-    },
-    settingsLink: {
-      paddingVertical: spacing.md,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.border,
-      marginBottom: spacing.sm,
-    },
-    settingsLinkText: {
-      color: colors.accentDark,
-      fontWeight: '600',
     },
     saveButton: {
       marginTop: spacing.xl,

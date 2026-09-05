@@ -1,5 +1,4 @@
 import { fireEvent, screen } from '@testing-library/react-native';
-import { useRouter } from 'expo-router';
 
 import { useSignOut } from '../../auth/hooks/useSignOut';
 import '../../../shared/i18n';
@@ -12,12 +11,10 @@ import { ProfileScreen } from './ProfileScreen';
 jest.mock('../hooks/useProfile', () => ({ useProfile: jest.fn() }));
 jest.mock('../hooks/useUpdateProfile', () => ({ useUpdateProfile: jest.fn() }));
 jest.mock('../../auth/hooks/useSignOut', () => ({ useSignOut: jest.fn() }));
-jest.mock('expo-router', () => ({ useRouter: jest.fn() }));
 
 const mockedUseProfile = jest.mocked(useProfile);
 const mockedUseUpdateProfile = jest.mocked(useUpdateProfile);
 const mockedUseSignOut = jest.mocked(useSignOut);
-const mockedUseRouter = jest.mocked(useRouter);
 
 const baseProfile: Profile = {
   id: 'user-1',
@@ -53,8 +50,6 @@ describe('ProfileScreen', () => {
     mockedUseSignOut.mockReturnValue({
       mutate: signOutMutate,
     } as unknown as ReturnType<typeof useSignOut>);
-
-    mockedUseRouter.mockReturnValue({ push: jest.fn() } as unknown as ReturnType<typeof useRouter>);
   });
 
   it('shows a loading indicator while the profile is loading', async () => {
@@ -184,21 +179,5 @@ describe('ProfileScreen', () => {
     await fireEvent.press(screen.getByTestId('profile-sign-out'));
 
     expect(signOutMutate).toHaveBeenCalled();
-  });
-
-  it('navigates to /settings when the settings link is pressed', async () => {
-    const push = jest.fn();
-    mockedUseRouter.mockReturnValue({ push } as unknown as ReturnType<typeof useRouter>);
-    mockedUseProfile.mockReturnValue({
-      isLoading: false,
-      isError: false,
-      data: baseProfile,
-    } as unknown as ReturnType<typeof useProfile>);
-
-    await render(<ProfileScreen userId="user-1" />);
-
-    await fireEvent.press(screen.getByTestId('profile-settings-link'));
-
-    expect(push).toHaveBeenCalledWith('/settings');
   });
 });
