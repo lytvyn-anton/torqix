@@ -150,6 +150,7 @@
     "repsPlaceholder": "Повтори",
     "weightPlaceholder": "кг",
     "target": "Ціль: {{sets}} × {{reps}}",
+    "viewProgress": "Прогрес",
     "cancelSheetTitle": "Скасувати це тренування?",
     "cancelSheetBody": "Уже записані підходи збережуться.",
     "cancelSheetConfirm": "Скасувати тренування",
@@ -165,6 +166,12 @@
     "emptyBody": "Завершіть тренування, щоб побачити його тут.",
     "statusDone": "Завершено",
     "statusSkipped": "Пропущено"
+  },
+  "progress": {
+    "title": "Прогрес",
+    "loadError": "Не вдалося завантажити прогрес по цій вправі.",
+    "emptyBody": "Запишіть підхід під час тренування, щоб почати відстежувати прогрес тут.",
+    "setEntry": "Підхід {{index}}: {{weight}} кг × {{reps}}"
   },
   "coach": {
     "title": "Тренер",

@@ -1,5 +1,6 @@
 import { supabase } from '../../../shared/api/supabase';
 import type {
+  ExerciseProgressEntry,
   LogSetInput,
   ProgramDayExerciseDetail,
   ProgramDaySummary,
@@ -198,5 +199,26 @@ export async function getWorkoutHistory(userId: string): Promise<WorkoutHistoryE
     programDayName: programDayName(row as never),
     scheduledDate: row.scheduled_date,
     status: row.status,
+  }));
+}
+
+// Every logged set for one exercise across completed workouts, newest first — the
+// per-exercise progress list. No explicit user filter: set_logs has no user_id column of its
+// own, and RLS already scopes it through workout_sessions ownership (see the migrations).
+export async function getExerciseProgress(exerciseId: string): Promise<ExerciseProgressEntry[]> {
+  const { data, error } = await supabase
+    .from('set_logs')
+    .select('id, set_index, reps_done, weight, workout_sessions!inner(scheduled_date, status)')
+    .eq('exercise_id', exerciseId)
+    .eq('workout_sessions.status', 'done')
+    .order('scheduled_date', { foreignTable: 'workout_sessions', ascending: false })
+    .order('set_index', { ascending: true });
+  if (error) throw error;
+  return data.map((row) => ({
+    id: row.id,
+    scheduledDate: (row.workout_sessions as unknown as { scheduled_date: string }).scheduled_date,
+    setIndex: row.set_index,
+    repsDone: row.reps_done,
+    weight: row.weight,
   }));
 }
