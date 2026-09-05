@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react-native';
 import { BottomTabBarHeightContext } from 'expo-router/js-tabs';
 import type { ReactElement } from 'react';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import '../../../shared/i18n';
 import { usePrograms } from '../hooks/usePrograms';
@@ -10,11 +11,19 @@ jest.mock('../hooks/usePrograms', () => ({ usePrograms: jest.fn() }));
 
 const mockedUsePrograms = jest.mocked(usePrograms);
 
-// ProgramsScreen reads useBottomTabBarHeight(), which throws outside a real Bottom Tab
-// Navigator — stand in the value it'd get there since these tests render it standalone.
+// ProgramsScreen reads useFloatingTabBarClearance(), which needs both a real Bottom Tab
+// Navigator (for useBottomTabBarHeight()) and a SafeAreaProvider (for useSafeAreaInsets())
+// — stand in the values it'd get there since these tests render it standalone.
 function renderWithTabBar(ui: ReactElement) {
   return render(
-    <BottomTabBarHeightContext.Provider value={83}>{ui}</BottomTabBarHeightContext.Provider>,
+    <SafeAreaProvider
+      initialMetrics={{
+        frame: { x: 0, y: 0, width: 390, height: 844 },
+        insets: { top: 0, left: 0, right: 0, bottom: 0 },
+      }}
+    >
+      <BottomTabBarHeightContext.Provider value={83}>{ui}</BottomTabBarHeightContext.Provider>
+    </SafeAreaProvider>,
   );
 }
 

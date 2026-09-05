@@ -43,10 +43,10 @@ export const spacing = {
 export const shadows = {
   tabBar: {
     shadowColor: '#000000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.16,
-    shadowRadius: 16,
-    elevation: 12,
+    shadowOffset: { width: 0, height: -6 },
+    shadowOpacity: 0.28,
+    shadowRadius: 20,
+    elevation: 16,
   },
 } as const;
 
