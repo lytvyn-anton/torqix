@@ -32,6 +32,8 @@ export default function AppLayout() {
           headerTintColor: colors.textPrimary,
         }}
       />
+      <Stack.Screen name="workout-session" options={{ headerShown: false }} />
+      <Stack.Screen name="workout-complete" options={{ headerShown: false }} />
       <Stack.Screen
         name="settings"
         options={{
