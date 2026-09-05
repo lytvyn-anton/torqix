@@ -75,7 +75,10 @@
     "emptyBody": "Create your first program to see today's workout here",
     "emptyCta": "Create Your First Program",
     "activeProgramLabel": "Active program",
-    "loadError": "Couldn't load your program."
+    "loadError": "Couldn't load your program.",
+    "chooseDayTitle": "What are you training today?",
+    "continueWorkout": "Continue workout",
+    "startError": "Couldn't start the workout. Try again."
   },
   "programs": {
     "title": "Programs",
@@ -121,6 +124,26 @@
       "calves": "Calves",
       "full_body": "Full body"
     }
+  },
+  "workouts": {
+    "cancel": "Cancel",
+    "finish": "Finish workout",
+    "loadError": "Couldn't load this workout.",
+    "logSet": "+ Log set",
+    "logSetError": "Couldn't log that set. Try again.",
+    "finishError": "Couldn't finish the workout. Try again.",
+    "cancelError": "Couldn't cancel the workout. Try again.",
+    "setsLoggedCount": "{{count}} logged",
+    "repsPlaceholder": "Reps",
+    "weightPlaceholder": "kg",
+    "target": "Target: {{sets}} × {{reps}}",
+    "cancelSheetTitle": "Cancel this workout?",
+    "cancelSheetBody": "Sets you've already logged will be kept.",
+    "cancelSheetConfirm": "Cancel workout",
+    "cancelSheetKeepGoing": "Keep going",
+    "completeTitle": "Workout complete!",
+    "completeBody": "{{count}} sets logged for {{day}}.",
+    "completeDone": "Done"
   },
   "history": {
     "title": "History",
