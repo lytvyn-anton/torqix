@@ -103,7 +103,20 @@
     "weightPlaceholder": "kg (optional)",
     "orphanedExercisesError": "Give every day with exercises a name before saving.",
     "create": "Create program",
-    "createError": "Couldn't create the program. Try again."
+    "createError": "Couldn't create the program. Try again.",
+    "detailTitle": "Program",
+    "detailLoadError": "Couldn't load this program.",
+    "edit": "Edit",
+    "editTitle": "Edit program",
+    "saveChanges": "Save changes",
+    "editError": "Couldn't save your changes. Try again.",
+    "delete": "Delete",
+    "weightUnit": "kg",
+    "deleteSheetTitle": "Delete this program?",
+    "deleteSheetBody": "This can't be undone. Workout history for this program will be kept.",
+    "deleteSheetConfirm": "Delete program",
+    "deleteSheetKeepGoing": "Keep it",
+    "deleteError": "Couldn't delete the program. Try again."
   },
   "exercises": {
     "pickerTitle": "Choose an exercise",

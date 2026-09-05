@@ -119,4 +119,21 @@ describe('ProgramsScreen', () => {
     expect(screen.getByText('Old 5x5')).toBeTruthy();
     expect(screen.getByText('Archived')).toBeTruthy();
   });
+
+  it('navigates to program detail when a card is pressed', async () => {
+    const push = jest.fn();
+    mockedUsePrograms.mockReturnValue({
+      isLoading: false,
+      isError: false,
+      data: [
+        { id: 'program-1', name: 'Push / Pull / Legs', status: 'active', createdAt: '2026-09-01' },
+      ],
+    } as unknown as ReturnType<typeof usePrograms>);
+    mockedUseRouter.mockReturnValue({ push } as unknown as ReturnType<typeof useRouter>);
+
+    await renderWithTabBar(<ProgramsScreen userId="user-1" />);
+    fireEvent.press(screen.getByTestId('program-card-program-1'));
+
+    expect(push).toHaveBeenCalledWith('/program/program-1');
+  });
 });

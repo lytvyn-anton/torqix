@@ -37,15 +37,15 @@ describe('ProgramCreateScreen', () => {
 
     await render(<ProgramCreateScreen userId="user-1" />);
 
-    await fireEvent.press(screen.getByTestId('program-create-save'));
+    await fireEvent.press(screen.getByTestId('program-form-save'));
     expect(mutate).not.toHaveBeenCalled();
 
-    await fireEvent.changeText(screen.getByTestId('program-create-name'), 'Push / Pull / Legs');
-    await fireEvent.press(screen.getByTestId('program-create-save'));
+    await fireEvent.changeText(screen.getByTestId('program-form-name'), 'Push / Pull / Legs');
+    await fireEvent.press(screen.getByTestId('program-form-save'));
     expect(mutate).not.toHaveBeenCalled();
 
-    await fireEvent.changeText(screen.getByTestId('program-create-day-0'), 'Push day');
-    await fireEvent.press(screen.getByTestId('program-create-save'));
+    await fireEvent.changeText(screen.getByTestId('program-form-day-0'), 'Push day');
+    await fireEvent.press(screen.getByTestId('program-form-save'));
 
     expect(mutate).toHaveBeenCalledWith(
       { name: 'Push / Pull / Legs', days: [{ name: 'Push day', exercises: [] }] },
@@ -63,17 +63,17 @@ describe('ProgramCreateScreen', () => {
 
     await render(<ProgramCreateScreen userId="user-1" />);
 
-    await fireEvent.changeText(screen.getByTestId('program-create-name'), 'Full Body');
-    await fireEvent.changeText(screen.getByTestId('program-create-day-0'), 'Day A');
-    await fireEvent.press(screen.getByTestId('program-create-add-day'));
+    await fireEvent.changeText(screen.getByTestId('program-form-name'), 'Full Body');
+    await fireEvent.changeText(screen.getByTestId('program-form-day-0'), 'Day A');
+    await fireEvent.press(screen.getByTestId('program-form-add-day'));
     // Second row left blank on purpose — should be filtered out on save.
-    expect(screen.getByTestId('program-create-day-1')).toBeTruthy();
+    expect(screen.getByTestId('program-form-day-1')).toBeTruthy();
 
-    await fireEvent.press(screen.getByTestId('program-create-add-day'));
-    await fireEvent.changeText(screen.getByTestId('program-create-day-2'), 'Day B');
-    await fireEvent.press(screen.getByTestId('program-create-remove-day-1'));
+    await fireEvent.press(screen.getByTestId('program-form-add-day'));
+    await fireEvent.changeText(screen.getByTestId('program-form-day-2'), 'Day B');
+    await fireEvent.press(screen.getByTestId('program-form-remove-day-1'));
 
-    await fireEvent.press(screen.getByTestId('program-create-save'));
+    await fireEvent.press(screen.getByTestId('program-form-save'));
 
     expect(mutate).toHaveBeenCalledWith(
       {
@@ -97,16 +97,16 @@ describe('ProgramCreateScreen', () => {
 
     await render(<ProgramCreateScreen userId="user-1" />);
 
-    await fireEvent.changeText(screen.getByTestId('program-create-name'), 'Legs');
-    await fireEvent.changeText(screen.getByTestId('program-create-day-0'), 'Leg day');
+    await fireEvent.changeText(screen.getByTestId('program-form-name'), 'Legs');
+    await fireEvent.changeText(screen.getByTestId('program-form-day-0'), 'Leg day');
 
-    await fireEvent.press(screen.getByTestId('program-create-day-0-add-exercise'));
+    await fireEvent.press(screen.getByTestId('program-form-day-0-add-exercise'));
     await fireEvent.press(screen.getByTestId('exercise-picker-item-ex-1'));
 
     expect(screen.getByText('Back Squat')).toBeTruthy();
 
-    await fireEvent.changeText(screen.getByTestId('program-create-day-0-exercise-0-weight'), '60');
-    await fireEvent.press(screen.getByTestId('program-create-save'));
+    await fireEvent.changeText(screen.getByTestId('program-form-day-0-exercise-0-weight'), '60');
+    await fireEvent.press(screen.getByTestId('program-form-save'));
 
     expect(mutate).toHaveBeenCalledWith(
       {
@@ -132,13 +132,13 @@ describe('ProgramCreateScreen', () => {
 
     await render(<ProgramCreateScreen userId="user-1" />);
 
-    await fireEvent.changeText(screen.getByTestId('program-create-name'), 'Legs');
-    await fireEvent.changeText(screen.getByTestId('program-create-day-0'), 'Leg day');
-    await fireEvent.press(screen.getByTestId('program-create-day-0-add-exercise'));
+    await fireEvent.changeText(screen.getByTestId('program-form-name'), 'Legs');
+    await fireEvent.changeText(screen.getByTestId('program-form-day-0'), 'Leg day');
+    await fireEvent.press(screen.getByTestId('program-form-day-0-add-exercise'));
     await fireEvent.press(screen.getByTestId('exercise-picker-item-ex-1'));
 
-    await fireEvent.press(screen.getByTestId('program-create-day-0-exercise-0-remove'));
-    await fireEvent.press(screen.getByTestId('program-create-save'));
+    await fireEvent.press(screen.getByTestId('program-form-day-0-exercise-0-remove'));
+    await fireEvent.press(screen.getByTestId('program-form-save'));
 
     expect(mutate).toHaveBeenCalledWith(
       { name: 'Legs', days: [{ name: 'Leg day', exercises: [] }] },
@@ -158,19 +158,19 @@ describe('ProgramCreateScreen', () => {
 
     // Overall program name is set and a second, named day exists, so canSave would
     // otherwise be true — the blank first day's picked exercise must still block saving.
-    await fireEvent.changeText(screen.getByTestId('program-create-name'), 'Legs');
-    await fireEvent.press(screen.getByTestId('program-create-day-0-add-exercise'));
+    await fireEvent.changeText(screen.getByTestId('program-form-name'), 'Legs');
+    await fireEvent.press(screen.getByTestId('program-form-day-0-add-exercise'));
     await fireEvent.press(screen.getByTestId('exercise-picker-item-ex-1'));
-    await fireEvent.press(screen.getByTestId('program-create-add-day'));
-    await fireEvent.changeText(screen.getByTestId('program-create-day-1'), 'Day B');
+    await fireEvent.press(screen.getByTestId('program-form-add-day'));
+    await fireEvent.changeText(screen.getByTestId('program-form-day-1'), 'Day B');
 
-    expect(screen.getByTestId('program-create-orphaned-exercises-error')).toBeTruthy();
+    expect(screen.getByTestId('program-form-orphaned-exercises-error')).toBeTruthy();
 
-    await fireEvent.press(screen.getByTestId('program-create-save'));
+    await fireEvent.press(screen.getByTestId('program-form-save'));
     expect(mutate).not.toHaveBeenCalled();
 
-    await fireEvent.changeText(screen.getByTestId('program-create-day-0'), 'Leg day');
-    await fireEvent.press(screen.getByTestId('program-create-save'));
+    await fireEvent.changeText(screen.getByTestId('program-form-day-0'), 'Leg day');
+    await fireEvent.press(screen.getByTestId('program-form-save'));
     expect(mutate).toHaveBeenCalled();
   });
 
@@ -183,6 +183,6 @@ describe('ProgramCreateScreen', () => {
 
     await render(<ProgramCreateScreen userId="user-1" />);
 
-    expect(screen.getByTestId('program-create-error')).toBeTruthy();
+    expect(screen.getByTestId('program-form-error')).toBeTruthy();
   });
 });

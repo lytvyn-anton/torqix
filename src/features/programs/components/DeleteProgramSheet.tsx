@@ -10,22 +10,22 @@ type Props = {
   onKeepGoing: () => void;
 };
 
-export function CancelWorkoutSheet({ visible, isError, isPending, onConfirm, onKeepGoing }: Props) {
+export function DeleteProgramSheet({ visible, isError, isPending, onConfirm, onKeepGoing }: Props) {
   const { t } = useTranslation();
 
   return (
     <ConfirmSheet
       visible={visible}
-      title={t('workouts.cancelSheetTitle')}
-      body={t('workouts.cancelSheetBody')}
-      confirmLabel={t('workouts.cancelSheetConfirm')}
-      keepGoingLabel={t('workouts.cancelSheetKeepGoing')}
-      errorText={t('workouts.cancelError')}
+      title={t('programs.deleteSheetTitle')}
+      body={t('programs.deleteSheetBody')}
+      confirmLabel={t('programs.deleteSheetConfirm')}
+      keepGoingLabel={t('programs.deleteSheetKeepGoing')}
+      errorText={t('programs.deleteError')}
       isError={isError}
       isPending={isPending}
       onConfirm={onConfirm}
       onKeepGoing={onKeepGoing}
-      testIdPrefix="cancel-workout"
+      testIdPrefix="delete-program"
     />
   );
 }
