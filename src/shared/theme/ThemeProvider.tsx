@@ -25,6 +25,14 @@ type ThemeContextValue = {
   // useAppReady so the splash screen doesn't hide onto a briefly-wrong (default "system")
   // theme while a stored "light"/"dark" override is still in flight.
   isHydrated: boolean;
+  // Derived once here (rather than each BlurView call site writing its own
+  // `resolvedScheme === 'dark' ? 'dark' : 'light'` ternary) so every glass surface follows
+  // the app's resolved theme — which can be a user override, not just the OS appearance —
+  // instead of expo-blur's own `tint="default"`, which only tracks the OS.
+  blurTint: 'light' | 'dark';
+  // Same idea for expo-status-bar's `style` prop, whose values are named for the icon color
+  // (not the background), so the mapping is inverted from blurTint's.
+  statusBarStyle: 'light' | 'dark';
 };
 
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
@@ -55,10 +63,12 @@ export function ThemeProvider({ children }: PropsWithChildren) {
   const resolvedScheme: ResolvedScheme =
     mode === 'system' ? (systemScheme === 'dark' ? 'dark' : 'light') : mode;
   const colors = resolvedScheme === 'dark' ? darkColors : lightColors;
+  const blurTint = resolvedScheme;
+  const statusBarStyle: 'light' | 'dark' = resolvedScheme === 'dark' ? 'light' : 'dark';
 
   const value = useMemo(
-    () => ({ colors, mode, resolvedScheme, setMode, isHydrated }),
-    [colors, mode, resolvedScheme, isHydrated],
+    () => ({ colors, mode, resolvedScheme, setMode, isHydrated, blurTint, statusBarStyle }),
+    [colors, mode, resolvedScheme, isHydrated, blurTint, statusBarStyle],
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { NewProgramButton } from '../../../src/features/programs/components/NewProgramButton';
 import { ProfileAvatarButton } from '../../../src/features/profile/components/ProfileAvatarButton';
+import { Background } from '../../../src/shared/components/Background';
 import {
   CoachIcon,
   HistoryIcon,
@@ -119,93 +120,103 @@ function buildTabBarTintStyle(colors: ThemeColors) {
 export default function TabsLayout() {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
-  const { colors, resolvedScheme } = useTheme();
+  const { colors, blurTint } = useTheme();
   const tintStyles = useThemedStyles(buildTabBarTintStyle);
 
   return (
-    <Tabs
-      screenOptions={{
-        headerRight: () => <ProfileAvatarButton />,
-        headerStyle: { backgroundColor: colors.background },
-        headerShadowVisible: false,
-        headerTintColor: colors.textPrimary,
-        tabBarActiveTintColor: colors.accent,
-        tabBarInactiveTintColor: colors.textMuted,
-        tabBarButton: GlassTabButton,
-        // Floating capsule that clears both the side and bottom edges (like Slack's/iOS
-        // Reminders' tab bar) instead of a full-width bar flush with the screen edges.
-        // Transparent background so tabBarBackground's blur shows content scrolling
-        // underneath, like iOS's native translucent tab bar. Screens with content pinned to
-        // the bottom edge (e.g. CoachScreen's composer) or a scrollable list (ProgramsScreen)
-        // add their own bottom offset via useBottomTabBarHeight() to avoid sitting behind it.
-        //
-        // `height` and `paddingBottom` override the library's own defaults (49px tall,
-        // padded by the safe-area inset) — see getTabBarHeight in expo-router's bundled
-        // BottomTabBar.js. Floating well clear of the bottom edge means the home-indicator
-        // inset doesn't need to be baked into the bar's own height any more; we push the
-        // whole bar up by that inset instead, via `bottom`.
-        // `start`/`end`, not `left`/`right`: the library's own base style for the bottom bar
-        // sets `start: 0, end: 0` (styles.bottom in expo-router's bundled BottomTabBar.js),
-        // and Yoga gives the logical start/end edges priority over the physical left/right
-        // ones whenever both are set — so a `left`/`right` override here is silently ignored.
-        tabBarStyle: {
-          position: 'absolute',
-          start: spacing.xl + spacing.sm,
-          end: spacing.xl + spacing.sm,
-          // iOS's home indicator inset leaves more room than the bar needs to clear it
-          // comfortably — nudge the bar down a bit closer to the edge on iOS specifically.
-          // Clamped at 0: devices/orientations with no bottom inset (e.g. a home-button
-          // iPhone) would otherwise go negative and push the bar off-screen.
-          bottom:
-            Platform.OS === 'ios'
-              ? Math.max(0, insets.bottom - TAB_BAR_IOS_BOTTOM_TRIM)
-              : insets.bottom,
-          height: TAB_BAR_HEIGHT,
-          paddingBottom: 0,
-          paddingTop: 0,
-          backgroundColor: 'transparent',
-          borderWidth: StyleSheet.hairlineWidth,
-          borderColor: colors.border,
-          borderRadius: TAB_BAR_HEIGHT / 2,
-          ...shadows.tabBar,
-        },
-        // Blur alone barely reads against this app's all-cream/white palette — there's rarely
-        // enough contrast behind the bar to see through. Layering a translucent white tint on
-        // top gives it a distinct "glass panel" look, matching how iOS's own system materials
-        // combine blur with a tint rather than using raw blur.
-        //
-        // Rounded + clipped here rather than on the bar itself, so the shadow above (which
-        // needs to render outside the bar's bounds) isn't clipped away by the same
-        // overflow: 'hidden' that rounds off the blur layer's corners.
-        tabBarBackground: () => (
-          <View style={[StyleSheet.absoluteFill, staticStyles.tabBarBackgroundClip]}>
-            <BlurView
-              intensity={80}
-              tint={resolvedScheme === 'dark' ? 'dark' : 'light'}
-              style={StyleSheet.absoluteFill}
-            />
-            <View style={[StyleSheet.absoluteFill, tintStyles.tabBarTint]} />
-          </View>
-        ),
-      }}
-    >
-      {TABS.map(({ name, titleKey, Icon, headerRight }) => (
-        <Tabs.Screen
-          key={name}
-          name={name}
-          options={{
-            title: t(titleKey),
-            tabBarIcon: ({ color, size }) => <Icon color={color} size={size} />,
-            ...(headerRight ? { headerRight } : {}),
-          }}
-        />
-      ))}
-    </Tabs>
+    <View style={staticStyles.root}>
+      <Background />
+      <Tabs
+        screenOptions={{
+          headerRight: () => <ProfileAvatarButton />,
+          // Transparent (not colors.background) so the ambient Background behind this whole
+          // stack shows through the header area too, matching the design canvas — the
+          // "Today"/"Programs"/etc. title floats directly on the background there rather than
+          // sitting on its own opaque bar.
+          headerStyle: { backgroundColor: 'transparent' },
+          // Belt-and-suspenders with each screen's own transparent root style below: this is
+          // the one place that actually guarantees it — a future tab screen that forgets to
+          // set backgroundColor: 'transparent' itself still won't paint over the ambient
+          // Background, since the scene container behind it already is transparent.
+          sceneStyle: { backgroundColor: 'transparent' },
+          headerShadowVisible: false,
+          headerTintColor: colors.textPrimary,
+          tabBarActiveTintColor: colors.accent,
+          tabBarInactiveTintColor: colors.textMuted,
+          tabBarButton: GlassTabButton,
+          // Floating capsule that clears both the side and bottom edges (like Slack's/iOS
+          // Reminders' tab bar) instead of a full-width bar flush with the screen edges.
+          // Transparent background so tabBarBackground's blur shows content scrolling
+          // underneath, like iOS's native translucent tab bar. Screens with content pinned to
+          // the bottom edge (e.g. CoachScreen's composer) or a scrollable list (ProgramsScreen)
+          // add their own bottom offset via useBottomTabBarHeight() to avoid sitting behind it.
+          //
+          // `height` and `paddingBottom` override the library's own defaults (49px tall,
+          // padded by the safe-area inset) — see getTabBarHeight in expo-router's bundled
+          // BottomTabBar.js. Floating well clear of the bottom edge means the home-indicator
+          // inset doesn't need to be baked into the bar's own height any more; we push the
+          // whole bar up by that inset instead, via `bottom`.
+          // `start`/`end`, not `left`/`right`: the library's own base style for the bottom bar
+          // sets `start: 0, end: 0` (styles.bottom in expo-router's bundled BottomTabBar.js),
+          // and Yoga gives the logical start/end edges priority over the physical left/right
+          // ones whenever both are set — so a `left`/`right` override here is silently ignored.
+          tabBarStyle: {
+            position: 'absolute',
+            start: spacing.xl + spacing.sm,
+            end: spacing.xl + spacing.sm,
+            // iOS's home indicator inset leaves more room than the bar needs to clear it
+            // comfortably — nudge the bar down a bit closer to the edge on iOS specifically.
+            // Clamped at 0: devices/orientations with no bottom inset (e.g. a home-button
+            // iPhone) would otherwise go negative and push the bar off-screen.
+            bottom:
+              Platform.OS === 'ios'
+                ? Math.max(0, insets.bottom - TAB_BAR_IOS_BOTTOM_TRIM)
+                : insets.bottom,
+            height: TAB_BAR_HEIGHT,
+            paddingBottom: 0,
+            paddingTop: 0,
+            backgroundColor: 'transparent',
+            borderWidth: StyleSheet.hairlineWidth,
+            borderColor: colors.border,
+            borderRadius: TAB_BAR_HEIGHT / 2,
+            ...shadows.tabBar,
+          },
+          // Layering a translucent white/dark tint on top of the blur gives the bar a distinct
+          // "glass panel" look, matching how iOS's own system materials combine blur with a
+          // tint rather than using raw blur alone.
+          //
+          // Rounded + clipped here rather than on the bar itself, so the shadow above (which
+          // needs to render outside the bar's bounds) isn't clipped away by the same
+          // overflow: 'hidden' that rounds off the blur layer's corners.
+          tabBarBackground: () => (
+            <View style={[StyleSheet.absoluteFill, staticStyles.tabBarBackgroundClip]}>
+              <BlurView intensity={80} tint={blurTint} style={StyleSheet.absoluteFill} />
+              <View style={[StyleSheet.absoluteFill, tintStyles.tabBarTint]} />
+            </View>
+          ),
+        }}
+      >
+        {TABS.map(({ name, titleKey, Icon, headerRight }) => (
+          <Tabs.Screen
+            key={name}
+            name={name}
+            options={{
+              title: t(titleKey),
+              tabBarIcon: ({ color, size }) => <Icon color={color} size={size} />,
+              ...(headerRight ? { headerRight } : {}),
+            }}
+          />
+        ))}
+      </Tabs>
+    </View>
   );
 }
 
 // Layout-only, theme-independent — built once at module scope.
 const staticStyles = StyleSheet.create({
+  root: {
+    flex: 1,
+  },
   headerRight: {
     flexDirection: 'row',
     alignItems: 'center',

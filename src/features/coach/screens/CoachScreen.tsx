@@ -4,6 +4,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { CoachIcon } from '../../../shared/components/icons/TabIcons';
 import { useFloatingTabBarClearance } from '../../../shared/hooks/useFloatingTabBarClearance';
+import { useFormStyles } from '../../../shared/theme/formStyles';
 import { useTheme } from '../../../shared/theme/ThemeProvider';
 import { fonts, radii, spacing, type ThemeColors } from '../../../shared/theme/theme';
 
@@ -13,6 +14,7 @@ export function CoachScreen() {
   const { t } = useTranslation();
   const tabBarClearance = useFloatingTabBarClearance();
   const { colors } = useTheme();
+  const formStyles = useFormStyles();
   const styles = useMemo(() => buildStyles(colors), [colors]);
 
   return (
@@ -25,7 +27,9 @@ export function CoachScreen() {
       <View style={styles.badge}>
         <Text style={styles.badgeText}>{t('coach.comingSoonBadge')}</Text>
       </View>
-      <View style={[styles.composer, { bottom: spacing.xl + tabBarClearance }]}>
+      <View
+        style={[formStyles.glassSurface, styles.composer, { bottom: spacing.xl + tabBarClearance }]}
+      >
         <Text style={styles.composerPlaceholder}>{t('coach.messagePlaceholder')}</Text>
       </View>
     </View>
@@ -38,7 +42,9 @@ function buildStyles(colors: ThemeColors) {
       flex: 1,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: colors.background,
+      // Transparent, not colors.background — the ambient Background sits behind the whole
+      // tab navigator (app/(app)/(tabs)/_layout.tsx) and shows through here.
+      backgroundColor: 'transparent',
       padding: spacing.xl,
       gap: spacing.sm,
     },
@@ -84,7 +90,9 @@ function buildStyles(colors: ThemeColors) {
       borderColor: colors.border,
       borderRadius: radii.xl,
       padding: spacing.md,
-      backgroundColor: colors.surface,
+      // Translucent, matching the glass card treatment (see ProgramsScreen's ProgramCard) —
+      // the already-blurred ambient Background shows softly through instead of a flat fill.
+      backgroundColor: colors.surfaceTranslucent,
     },
     composerPlaceholder: {
       fontSize: 14,

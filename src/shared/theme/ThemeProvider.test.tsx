@@ -6,13 +6,16 @@ import { darkColors, lightColors } from './theme';
 import { ThemeProvider, useTheme } from './ThemeProvider';
 
 function Probe() {
-  const { colors, mode, resolvedScheme, setMode, isHydrated } = useTheme();
+  const { colors, mode, resolvedScheme, setMode, isHydrated, blurTint, statusBarStyle } =
+    useTheme();
   return (
     <>
       <Text testID="mode">{mode}</Text>
       <Text testID="resolved-scheme">{resolvedScheme}</Text>
       <Text testID="background">{colors.background}</Text>
       <Text testID="hydrated">{String(isHydrated)}</Text>
+      <Text testID="blur-tint">{blurTint}</Text>
+      <Text testID="status-bar-style">{statusBarStyle}</Text>
       <TouchableOpacity testID="set-dark" onPress={() => setMode('dark')}>
         <Text>set dark</Text>
       </TouchableOpacity>
@@ -54,6 +57,22 @@ describe('ThemeProvider', () => {
     expect(screen.getByTestId('resolved-scheme')).toHaveTextContent('dark');
     expect(screen.getByTestId('background')).toHaveTextContent(darkColors.background);
     expect(await AsyncStorage.getItem('theme-preference')).toBe('dark');
+  });
+
+  it('derives blurTint and statusBarStyle from the resolved scheme, not the OS default', async () => {
+    await render(
+      <ThemeProvider>
+        <Probe />
+      </ThemeProvider>,
+    );
+
+    expect(screen.getByTestId('blur-tint')).toHaveTextContent('light');
+    expect(screen.getByTestId('status-bar-style')).toHaveTextContent('dark');
+
+    await fireEvent.press(screen.getByTestId('set-dark'));
+
+    expect(screen.getByTestId('blur-tint')).toHaveTextContent('dark');
+    expect(screen.getByTestId('status-bar-style')).toHaveTextContent('light');
   });
 
   it('restores a persisted mode on mount', async () => {
