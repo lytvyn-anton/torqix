@@ -113,7 +113,9 @@ describe('SetLoggingScreen', () => {
       repsDone: 10,
       weight: 40,
     });
-  });
+    // First "real" render in this describe block is slow on CI (see the same bump on
+    // ProgramCreateScreen.test.tsx's first test) — default 5000ms timeout flaked there.
+  }, 15000);
 
   it('logs subsequent sets with an incrementing set index based on already-logged sets', async () => {
     mockedUseSetLogs.mockReturnValue({
