@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { Text, TouchableOpacity, View } from 'react-native';
 
-import { pickerChipStyles as styles } from './pickerChipStyles';
+import { usePickerChipStyles } from './pickerChipStyles';
 
 type Props<T extends string> = {
   options: readonly T[];
@@ -19,6 +19,7 @@ export function OptionPicker<T extends string>({
   testIDPrefix,
 }: Props<T>) {
   const { t } = useTranslation();
+  const styles = usePickerChipStyles();
 
   return (
     <View style={styles.row}>

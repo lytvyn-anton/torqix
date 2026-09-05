@@ -1,10 +1,12 @@
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import { useActiveProgram } from '../../programs/hooks/useActiveProgram';
 import { ProgramsIcon } from '../../../shared/components/icons/TabIcons';
-import { formStyles } from '../../../shared/theme/formStyles';
-import { colors, fonts, spacing } from '../../../shared/theme/theme';
+import { useFormStyles } from '../../../shared/theme/formStyles';
+import { useTheme } from '../../../shared/theme/ThemeProvider';
+import { fonts, spacing, type ThemeColors } from '../../../shared/theme/theme';
 
 type Props = {
   userId: string;
@@ -14,6 +16,9 @@ type Props = {
 export function TodayScreen({ userId, onCreateProgram }: Props) {
   const { t } = useTranslation();
   const activeProgramQuery = useActiveProgram(userId);
+  const { colors } = useTheme();
+  const formStyles = useFormStyles();
+  const styles = useMemo(() => buildStyles(colors), [colors]);
 
   if (activeProgramQuery.isLoading) {
     return (
@@ -45,7 +50,7 @@ export function TodayScreen({ userId, onCreateProgram }: Props) {
         <Text style={styles.emptyTitle}>{t('today.emptyTitle')}</Text>
         <Text style={styles.emptyBody}>{t('today.emptyBody')}</Text>
         <TouchableOpacity
-          style={styles.emptyCta}
+          style={[formStyles.primaryButton, styles.emptyCta]}
           onPress={onCreateProgram}
           testID="today-create-program"
           accessibilityRole="button"
@@ -66,55 +71,56 @@ export function TodayScreen({ userId, onCreateProgram }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  centered: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.background,
-    padding: spacing.xl,
-    gap: spacing.md,
-  },
-  error: {
-    color: colors.error,
-  },
-  emptyIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: colors.accentTint,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.sm,
-  },
-  emptyTitle: {
-    fontFamily: fonts.headingBold,
-    fontWeight: fonts.headingBoldWeight,
-    fontSize: 15,
-    color: colors.textPrimary,
-  },
-  emptyBody: {
-    fontSize: 13,
-    color: colors.textMuted,
-    textAlign: 'center',
-  },
-  emptyCta: {
-    ...formStyles.primaryButton,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.xl,
-    marginTop: spacing.sm,
-  },
-  activeProgramLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: colors.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-  },
-  activeProgramName: {
-    fontFamily: fonts.heading,
-    fontWeight: fonts.headingWeight,
-    fontSize: 20,
-    color: colors.textPrimary,
-  },
-});
+function buildStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    centered: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.background,
+      padding: spacing.xl,
+      gap: spacing.md,
+    },
+    error: {
+      color: colors.error,
+    },
+    emptyIcon: {
+      width: 52,
+      height: 52,
+      borderRadius: 26,
+      backgroundColor: colors.accentTint,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: spacing.sm,
+    },
+    emptyTitle: {
+      fontFamily: fonts.headingBold,
+      fontWeight: fonts.headingBoldWeight,
+      fontSize: 15,
+      color: colors.textPrimary,
+    },
+    emptyBody: {
+      fontSize: 13,
+      color: colors.textMuted,
+      textAlign: 'center',
+    },
+    emptyCta: {
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.xl,
+      marginTop: spacing.sm,
+    },
+    activeProgramLabel: {
+      fontSize: 11,
+      fontWeight: '600',
+      color: colors.textMuted,
+      textTransform: 'uppercase',
+      letterSpacing: 0.4,
+    },
+    activeProgramName: {
+      fontFamily: fonts.heading,
+      fontWeight: fonts.headingWeight,
+      fontSize: 20,
+      color: colors.textPrimary,
+    },
+  });
+}

@@ -1,6 +1,7 @@
-import { render, screen } from '@testing-library/react-native';
+import { screen } from '@testing-library/react-native';
 
 import '../../../shared/i18n';
+import { renderWithProviders as render } from '../../../shared/testing/renderWithProviders';
 import { HistoryScreen } from './HistoryScreen';
 
 describe('HistoryScreen', () => {

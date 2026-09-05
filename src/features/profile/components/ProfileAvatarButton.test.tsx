@@ -1,8 +1,9 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { fireEvent, screen } from '@testing-library/react-native';
 import { useRouter } from 'expo-router';
 
 import '../../../shared/i18n';
 import { useSession } from '../../../shared/auth/SessionProvider';
+import { renderWithProviders as render } from '../../../shared/testing/renderWithProviders';
 import { ProfileAvatarButton } from './ProfileAvatarButton';
 
 jest.mock('expo-router', () => ({ useRouter: jest.fn() }));

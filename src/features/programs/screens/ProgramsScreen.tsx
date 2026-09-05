@@ -1,4 +1,5 @@
 import { useRouter } from 'expo-router';
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
@@ -13,8 +14,9 @@ import { usePrograms } from '../hooks/usePrograms';
 import type { Program } from '../types';
 import { ProgramsIcon } from '../../../shared/components/icons/TabIcons';
 import { useFloatingTabBarClearance } from '../../../shared/hooks/useFloatingTabBarClearance';
-import { formStyles } from '../../../shared/theme/formStyles';
-import { colors, fonts, radii, spacing } from '../../../shared/theme/theme';
+import { useFormStyles } from '../../../shared/theme/formStyles';
+import { useTheme } from '../../../shared/theme/ThemeProvider';
+import { fonts, radii, spacing, type ThemeColors } from '../../../shared/theme/theme';
 
 type Props = {
   userId: string;
@@ -25,6 +27,9 @@ export function ProgramsScreen({ userId }: Props) {
   const router = useRouter();
   const programsQuery = usePrograms(userId);
   const tabBarClearance = useFloatingTabBarClearance();
+  const { colors } = useTheme();
+  const formStyles = useFormStyles();
+  const styles = useMemo(() => buildStyles(colors), [colors]);
 
   if (programsQuery.isLoading) {
     return (
@@ -56,7 +61,7 @@ export function ProgramsScreen({ userId }: Props) {
         <Text style={styles.emptyTitle}>{t('programs.emptyTitle')}</Text>
         <Text style={styles.emptyBody}>{t('programs.emptyBody')}</Text>
         <TouchableOpacity
-          style={styles.emptyCta}
+          style={[formStyles.primaryButton, styles.emptyCta]}
           onPress={() => router.push('/program-create')}
           testID="programs-empty-cta"
           accessibilityRole="button"
@@ -94,6 +99,9 @@ function ProgramCard({
   locale: string;
   archivedLabel: string;
 }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => buildStyles(colors), [colors]);
+
   return (
     <View style={styles.card} testID={`program-card-${program.id}`}>
       <View style={styles.cardHeader}>
@@ -113,84 +121,85 @@ function ProgramCard({
   );
 }
 
-const styles = StyleSheet.create({
-  centered: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.background,
-    padding: spacing.xl,
-    gap: spacing.md,
-  },
-  error: {
-    color: colors.error,
-  },
-  emptyIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: colors.accentTint,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.sm,
-  },
-  emptyTitle: {
-    fontFamily: fonts.headingBold,
-    fontWeight: fonts.headingBoldWeight,
-    fontSize: 15,
-    color: colors.textPrimary,
-  },
-  emptyBody: {
-    fontSize: 13,
-    color: colors.textMuted,
-    textAlign: 'center',
-  },
-  emptyCta: {
-    ...formStyles.primaryButton,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.xl,
-    marginTop: spacing.sm,
-  },
-  list: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  listContent: {
-    padding: spacing.lg,
-    gap: spacing.md,
-  },
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.lg,
-    gap: spacing.xs,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  cardName: {
-    fontFamily: fonts.headingBold,
-    fontWeight: fonts.headingBoldWeight,
-    fontSize: 16,
-    color: colors.textPrimary,
-  },
-  cardDate: {
-    fontSize: 12,
-    color: colors.textMuted,
-  },
-  badge: {
-    backgroundColor: colors.accentTint,
-    borderRadius: radii.pill,
-    paddingVertical: 2,
-    paddingHorizontal: spacing.sm,
-  },
-  badgeText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: colors.accentDark,
-  },
-});
+function buildStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    centered: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.background,
+      padding: spacing.xl,
+      gap: spacing.md,
+    },
+    error: {
+      color: colors.error,
+    },
+    emptyIcon: {
+      width: 52,
+      height: 52,
+      borderRadius: 26,
+      backgroundColor: colors.accentTint,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: spacing.sm,
+    },
+    emptyTitle: {
+      fontFamily: fonts.headingBold,
+      fontWeight: fonts.headingBoldWeight,
+      fontSize: 15,
+      color: colors.textPrimary,
+    },
+    emptyBody: {
+      fontSize: 13,
+      color: colors.textMuted,
+      textAlign: 'center',
+    },
+    emptyCta: {
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.xl,
+      marginTop: spacing.sm,
+    },
+    list: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    listContent: {
+      padding: spacing.lg,
+      gap: spacing.md,
+    },
+    card: {
+      backgroundColor: colors.surface,
+      borderRadius: radii.lg,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: spacing.lg,
+      gap: spacing.xs,
+    },
+    cardHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    cardName: {
+      fontFamily: fonts.headingBold,
+      fontWeight: fonts.headingBoldWeight,
+      fontSize: 16,
+      color: colors.textPrimary,
+    },
+    cardDate: {
+      fontSize: 12,
+      color: colors.textMuted,
+    },
+    badge: {
+      backgroundColor: colors.accentTint,
+      borderRadius: radii.pill,
+      paddingVertical: 2,
+      paddingHorizontal: spacing.sm,
+    },
+    badgeText: {
+      fontSize: 11,
+      fontWeight: '600',
+      color: colors.accentDark,
+    },
+  });
+}

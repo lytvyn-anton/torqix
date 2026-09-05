@@ -1,7 +1,8 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { fireEvent, screen } from '@testing-library/react-native';
 import { useRouter } from 'expo-router';
 
 import '../../../shared/i18n';
+import { renderWithProviders as render } from '../../../shared/testing/renderWithProviders';
 import { useCreateProgram } from '../hooks/useCreateProgram';
 import { ProgramCreateScreen } from './ProgramCreateScreen';
 
