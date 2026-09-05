@@ -22,6 +22,7 @@ import type { ProgramDayExerciseDetail, SetLog } from '../types';
 import { useFormStyles } from '../../../shared/theme/formStyles';
 import { useTheme } from '../../../shared/theme/ThemeProvider';
 import { spacing, type ThemeColors } from '../../../shared/theme/theme';
+import { toNullableFloat, toNullableInt } from '../../../shared/utils/numberInput';
 
 type Props = {
   userId: string;
@@ -37,20 +38,6 @@ function defaultDraft(exercise: ProgramDayExerciseDetail): Draft {
     reps: exercise.reps != null ? String(exercise.reps) : '',
     weight: exercise.targetWeight != null ? String(exercise.targetWeight) : '',
   };
-}
-
-function toNullableInt(value: string): number | null {
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-  const parsed = Number.parseInt(trimmed, 10);
-  return Number.isNaN(parsed) ? null : parsed;
-}
-
-function toNullableFloat(value: string): number | null {
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-  const parsed = Number.parseFloat(trimmed);
-  return Number.isNaN(parsed) ? null : parsed;
 }
 
 export function SetLoggingScreen({ userId, sessionId, onCancelled, onCompleted }: Props) {
