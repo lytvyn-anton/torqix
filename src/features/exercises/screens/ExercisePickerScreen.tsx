@@ -10,7 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 import { useFormStyles } from '../../../shared/theme/formStyles';
 import { useTheme } from '../../../shared/theme/ThemeProvider';
@@ -68,81 +68,92 @@ export function ExercisePickerScreen({ visible, onSelect, onClose }: Props) {
       onRequestClose={onClose}
       testID="exercise-picker"
     >
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.header}>
-          <Text style={formStyles.screenTitle}>{t('exercises.pickerTitle')}</Text>
-          <TouchableOpacity
-            onPress={onClose}
-            accessibilityRole="button"
-            testID="exercise-picker-close"
-          >
-            <Text style={styles.closeText}>{t('exercises.close')}</Text>
-          </TouchableOpacity>
-        </View>
-
-        <TextInput
-          style={[formStyles.input, styles.search]}
-          value={query}
-          onChangeText={setQuery}
-          placeholder={t('exercises.searchPlaceholder')}
-          placeholderTextColor={colors.textFaint}
-          testID="exercise-picker-search"
-        />
-
-        <FlatList
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.chipRow}
-          contentContainerStyle={styles.chipRowContent}
-          data={[ALL_MUSCLE_GROUPS, ...muscleGroups]}
-          keyExtractor={(group) => group ?? 'all'}
-          renderItem={({ item: group }) => {
-            const selected = group === muscleGroup;
-            const label =
-              group === ALL_MUSCLE_GROUPS
-                ? t('exercises.allMuscleGroups')
-                : t(`exercises.muscleGroup.${group}`, { defaultValue: group });
-            return (
-              <TouchableOpacity
-                onPress={() => setMuscleGroup(group)}
-                style={[styles.chip, selected && styles.chipSelected]}
-                testID={`exercise-picker-filter-${group ?? 'all'}`}
-              >
-                <Text style={[styles.chipText, selected && styles.chipTextSelected]}>{label}</Text>
-              </TouchableOpacity>
-            );
-          }}
-        />
-
-        {isLoading && <ActivityIndicator style={styles.stateIndicator} color={colors.accent} />}
-        {isError && (
-          <Text style={[formStyles.error, styles.stateIndicator]}>{t('exercises.loadError')}</Text>
-        )}
-        {!isLoading && !isError && filtered.length === 0 && (
-          <Text style={[styles.noResults, styles.stateIndicator]}>{t('exercises.noResults')}</Text>
-        )}
-
-        <FlatList
-          data={filtered}
-          keyExtractor={(exercise) => exercise.id}
-          renderItem={({ item: exercise }) => (
+      {/* RN's Modal opens a separate native window on iOS, so the app-root SafeAreaProvider's
+          insets don't apply here — without its own provider, SafeAreaView below measures 0
+          top inset and the header renders under the status bar / Dynamic Island. */}
+      <SafeAreaProvider>
+        <SafeAreaView style={styles.safeArea}>
+          <View style={styles.header}>
+            <Text style={formStyles.screenTitle}>{t('exercises.pickerTitle')}</Text>
             <TouchableOpacity
-              style={styles.row}
-              onPress={() => onSelect(exercise)}
-              testID={`exercise-picker-item-${exercise.id}`}
+              onPress={onClose}
+              accessibilityRole="button"
+              testID="exercise-picker-close"
             >
-              <Text style={styles.rowName}>{exercise.name}</Text>
-              {exercise.muscleGroup && (
-                <Text style={styles.rowMeta}>
-                  {t(`exercises.muscleGroup.${exercise.muscleGroup}`, {
-                    defaultValue: exercise.muscleGroup,
-                  })}
-                </Text>
-              )}
+              <Text style={styles.closeText}>{t('exercises.close')}</Text>
             </TouchableOpacity>
+          </View>
+
+          <TextInput
+            style={[formStyles.input, styles.search]}
+            value={query}
+            onChangeText={setQuery}
+            placeholder={t('exercises.searchPlaceholder')}
+            placeholderTextColor={colors.textFaint}
+            testID="exercise-picker-search"
+          />
+
+          <FlatList
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.chipRow}
+            contentContainerStyle={styles.chipRowContent}
+            data={[ALL_MUSCLE_GROUPS, ...muscleGroups]}
+            keyExtractor={(group) => group ?? 'all'}
+            renderItem={({ item: group }) => {
+              const selected = group === muscleGroup;
+              const label =
+                group === ALL_MUSCLE_GROUPS
+                  ? t('exercises.allMuscleGroups')
+                  : t(`exercises.muscleGroup.${group}`, { defaultValue: group });
+              return (
+                <TouchableOpacity
+                  onPress={() => setMuscleGroup(group)}
+                  style={[styles.chip, selected && styles.chipSelected]}
+                  testID={`exercise-picker-filter-${group ?? 'all'}`}
+                >
+                  <Text style={[styles.chipText, selected && styles.chipTextSelected]}>
+                    {label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            }}
+          />
+
+          {isLoading && <ActivityIndicator style={styles.stateIndicator} color={colors.accent} />}
+          {isError && (
+            <Text style={[formStyles.error, styles.stateIndicator]}>
+              {t('exercises.loadError')}
+            </Text>
           )}
-        />
-      </SafeAreaView>
+          {!isLoading && !isError && filtered.length === 0 && (
+            <Text style={[styles.noResults, styles.stateIndicator]}>
+              {t('exercises.noResults')}
+            </Text>
+          )}
+
+          <FlatList
+            data={filtered}
+            keyExtractor={(exercise) => exercise.id}
+            renderItem={({ item: exercise }) => (
+              <TouchableOpacity
+                style={styles.row}
+                onPress={() => onSelect(exercise)}
+                testID={`exercise-picker-item-${exercise.id}`}
+              >
+                <Text style={styles.rowName}>{exercise.name}</Text>
+                {exercise.muscleGroup && (
+                  <Text style={styles.rowMeta}>
+                    {t(`exercises.muscleGroup.${exercise.muscleGroup}`, {
+                      defaultValue: exercise.muscleGroup,
+                    })}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            )}
+          />
+        </SafeAreaView>
+      </SafeAreaProvider>
     </Modal>
   );
 }
@@ -170,13 +181,18 @@ function buildStyles(colors: ThemeColors) {
     },
     chipRow: {
       flexGrow: 0,
+      // Horizontal FlatLists don't always auto-size their cross-axis height to content on
+      // native, so without a floor here the row clips the chips it renders. minHeight (not
+      // height) so the row still grows if larger accessibility font sizes need more space.
+      minHeight: 44,
       marginBottom: spacing.md,
     },
     chipRowContent: {
+      alignItems: 'center',
       gap: spacing.sm,
     },
     chip: {
-      paddingVertical: spacing.xs,
+      paddingVertical: spacing.sm,
       paddingHorizontal: spacing.md,
       borderRadius: radii.pill,
       borderWidth: 1,
