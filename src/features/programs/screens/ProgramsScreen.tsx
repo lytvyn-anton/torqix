@@ -1,9 +1,9 @@
-import { useBottomTabBarHeight } from 'expo-router/js-tabs';
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
 
 import { usePrograms } from '../hooks/usePrograms';
 import type { Program } from '../types';
+import { useFloatingTabBarClearance } from '../../../shared/hooks/useFloatingTabBarClearance';
 import { colors, fonts, radii, spacing } from '../../../shared/theme/theme';
 
 type Props = {
@@ -13,7 +13,7 @@ type Props = {
 export function ProgramsScreen({ userId }: Props) {
   const { t, i18n } = useTranslation();
   const programsQuery = usePrograms(userId);
-  const tabBarHeight = useBottomTabBarHeight();
+  const tabBarClearance = useFloatingTabBarClearance();
 
   if (programsQuery.isLoading) {
     return (
@@ -49,7 +49,7 @@ export function ProgramsScreen({ userId }: Props) {
     <FlatList
       testID="programs-list"
       style={styles.list}
-      contentContainerStyle={[styles.listContent, { paddingBottom: spacing.lg + tabBarHeight }]}
+      contentContainerStyle={[styles.listContent, { paddingBottom: spacing.lg + tabBarClearance }]}
       data={programs}
       keyExtractor={(program) => program.id}
       renderItem={({ item }) => (
