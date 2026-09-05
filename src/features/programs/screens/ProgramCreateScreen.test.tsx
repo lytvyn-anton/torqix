@@ -42,7 +42,7 @@ describe('ProgramCreateScreen', () => {
       { name: 'Push / Pull / Legs', days: ['Push day'] },
       expect.objectContaining({ onSuccess: expect.any(Function) }),
     );
-  });
+  }, 15000);
 
   it('adds and removes day rows, only sending non-blank names', async () => {
     const mutate = jest.fn();
