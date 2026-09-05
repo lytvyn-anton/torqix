@@ -20,6 +20,7 @@ import {
   HistoryIcon,
   ProgramsIcon,
   TodayIcon,
+  TrendingUpIcon,
   type TabIconProps,
 } from '../../../src/shared/components/icons/TabIcons';
 import { TAB_BAR_IOS_BOTTOM_TRIM } from '../../../src/shared/theme/tabBarGeometry';
@@ -31,8 +32,8 @@ import { shadows, spacing, type ThemeColors } from '../../../src/shared/theme/th
 // the bottom edge means the home indicator inset doesn't need to be baked into the bar itself.
 const TAB_BAR_HEIGHT = 64;
 
-// Sized to fit "Programs" — the longest of the four tab labels — plus its padding, so every
-// tab's active pill is the same width instead of hugging each label's own text width.
+// Sized to fit "Programs"/"Progress" — the longest of the five tab labels — plus its padding,
+// so every tab's active pill is the same width instead of hugging each label's own text width.
 const TAB_PILL_MIN_WIDTH = 72;
 
 // The pill sits roughly 4-5px in from the bar's edge on the near-flush first/last tabs (icon
@@ -59,6 +60,7 @@ const TABS: {
       </View>
     ),
   },
+  { name: 'progress', titleKey: 'progressTab.title', Icon: TrendingUpIcon },
   { name: 'history', titleKey: 'history.title', Icon: HistoryIcon },
   { name: 'coach', titleKey: 'coach.title', Icon: CoachIcon },
 ];

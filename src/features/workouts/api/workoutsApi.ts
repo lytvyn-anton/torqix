@@ -1,6 +1,7 @@
 import { supabase } from '../../../shared/api/supabase';
 import type {
   ExerciseProgressEntry,
+  ExerciseSummary,
   LogSetInput,
   ProgramDayExerciseDetail,
   ProgramDaySummary,
@@ -220,5 +221,51 @@ export async function getExerciseProgress(exerciseId: string): Promise<ExerciseP
     setIndex: row.set_index,
     repsDone: row.reps_done,
     weight: row.weight,
+  }));
+}
+
+// One row per exercise the user has ever logged a set for, most recently performed first —
+// the Progress tab's exercise list. Aggregated client-side from the flat set_logs rows rather
+// than a SQL GROUP BY: this app's per-user set volume is small, and it keeps the same
+// fetch-then-shape style as the rest of this file.
+export async function getLoggedExercises(userId: string): Promise<ExerciseSummary[]> {
+  const { data, error } = await supabase
+    .from('set_logs')
+    .select(
+      'exercise_id, workout_session_id, exercises(name), workout_sessions!inner(scheduled_date, status, user_id)',
+    )
+    .eq('workout_sessions.user_id', userId)
+    .eq('workout_sessions.status', 'done')
+    .order('scheduled_date', { foreignTable: 'workout_sessions', ascending: false });
+  if (error) throw error;
+
+  // Keyed by session id, not scheduled_date — workout_sessions has no uniqueness constraint
+  // on (user_id, scheduled_date), so two distinct "done" sessions can share a calendar date
+  // (a rescheduled/redone session, or two program days both landing on the same day) and
+  // must not have their set counts merged together.
+  const summaries = new Map<string, ExerciseSummary & { lastSessionId: string }>();
+  for (const row of data) {
+    const exerciseId = row.exercise_id;
+    const sessionId = row.workout_session_id;
+    const scheduledDate = (row.workout_sessions as unknown as { scheduled_date: string })
+      .scheduled_date;
+    const existing = summaries.get(exerciseId);
+    if (!existing) {
+      summaries.set(exerciseId, {
+        exerciseId,
+        exerciseName: (row.exercises as unknown as { name: string }).name,
+        lastScheduledDate: scheduledDate,
+        lastSessionSetCount: 1,
+        lastSessionId: sessionId,
+      });
+    } else if (sessionId === existing.lastSessionId) {
+      existing.lastSessionSetCount += 1;
+    }
+  }
+  return Array.from(summaries.values()).map((summary) => ({
+    exerciseId: summary.exerciseId,
+    exerciseName: summary.exerciseName,
+    lastScheduledDate: summary.lastScheduledDate,
+    lastSessionSetCount: summary.lastSessionSetCount,
   }));
 }
