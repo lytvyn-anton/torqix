@@ -1,6 +1,7 @@
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import { StyleSheet, View } from 'react-native';
+import { memo, useMemo } from 'react';
+import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { useTheme } from '../theme/ThemeProvider';
 
@@ -48,14 +49,36 @@ const LIGHT_BACKGROUND: BackgroundSpec = {
   ],
 };
 
+function blobStyle(blob: Blob): StyleProp<ViewStyle> {
+  return [
+    styles.blob,
+    {
+      width: blob.size,
+      height: blob.size,
+      borderRadius: blob.size / 2,
+      backgroundColor: blob.color,
+      top: blob.top,
+      bottom: blob.bottom,
+      left: blob.left,
+      right: blob.right,
+    },
+  ];
+}
+
 // Ambient, blurred-color backdrop behind main content — replaces a flat background fill.
 // RN has no direct equivalent of the canvas's per-shape `filter: blur()`, so this renders the
 // blobs at full opacity/sharp edges and blurs the whole composited layer with one BlurView on
 // top instead, which blends them into soft overlapping glows. An approximation of the design
 // canvas, not a pixel-identical port.
-export function Background() {
-  const { resolvedScheme } = useTheme();
+//
+// Mounted once behind the whole tab navigator (app/(app)/(tabs)/_layout.tsx), so it re-renders
+// whenever that navigator does — a safe-area inset or locale change, not just an actual theme
+// flip. memo() plus memoizing the derived blob styles below means those unrelated re-renders
+// skip rebuilding this component's output entirely.
+export const Background = memo(function Background() {
+  const { resolvedScheme, blurTint } = useTheme();
   const spec = resolvedScheme === 'dark' ? DARK_BACKGROUND : LIGHT_BACKGROUND;
+  const blobStyles = useMemo(() => spec.blobs.map(blobStyle), [spec]);
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
@@ -66,28 +89,15 @@ export function Background() {
         end={{ x: 0.67, y: 0.97 }}
         style={StyleSheet.absoluteFill}
       />
-      {spec.blobs.map((blob, index) => (
-        <View
-          key={index}
-          style={[
-            styles.blob,
-            {
-              width: blob.size,
-              height: blob.size,
-              borderRadius: blob.size / 2,
-              backgroundColor: blob.color,
-              top: blob.top,
-              bottom: blob.bottom,
-              left: blob.left,
-              right: blob.right,
-            },
-          ]}
-        />
+      {blobStyles.map((style, index) => (
+        <View key={index} style={style} />
       ))}
-      <BlurView intensity={90} tint="default" style={StyleSheet.absoluteFill} />
+      {/* Follows the app's resolved theme (blurTint), not expo-blur's own "default" tint,
+          which only tracks the OS appearance and would mismatch a user-chosen override. */}
+      <BlurView intensity={90} tint={blurTint} style={StyleSheet.absoluteFill} />
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   blob: {

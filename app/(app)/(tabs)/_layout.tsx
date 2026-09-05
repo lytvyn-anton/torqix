@@ -120,7 +120,7 @@ function buildTabBarTintStyle(colors: ThemeColors) {
 export default function TabsLayout() {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
-  const { colors, resolvedScheme } = useTheme();
+  const { colors, blurTint } = useTheme();
   const tintStyles = useThemedStyles(buildTabBarTintStyle);
 
   return (
@@ -134,6 +134,11 @@ export default function TabsLayout() {
           // "Today"/"Programs"/etc. title floats directly on the background there rather than
           // sitting on its own opaque bar.
           headerStyle: { backgroundColor: 'transparent' },
+          // Belt-and-suspenders with each screen's own transparent root style below: this is
+          // the one place that actually guarantees it — a future tab screen that forgets to
+          // set backgroundColor: 'transparent' itself still won't paint over the ambient
+          // Background, since the scene container behind it already is transparent.
+          sceneStyle: { backgroundColor: 'transparent' },
           headerShadowVisible: false,
           headerTintColor: colors.textPrimary,
           tabBarActiveTintColor: colors.accent,
@@ -185,11 +190,7 @@ export default function TabsLayout() {
           // overflow: 'hidden' that rounds off the blur layer's corners.
           tabBarBackground: () => (
             <View style={[StyleSheet.absoluteFill, staticStyles.tabBarBackgroundClip]}>
-              <BlurView
-                intensity={80}
-                tint={resolvedScheme === 'dark' ? 'dark' : 'light'}
-                style={StyleSheet.absoluteFill}
-              />
+              <BlurView intensity={80} tint={blurTint} style={StyleSheet.absoluteFill} />
               <View style={[StyleSheet.absoluteFill, tintStyles.tabBarTint]} />
             </View>
           ),

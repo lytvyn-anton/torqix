@@ -15,6 +15,7 @@ type FormStyles = {
   error: TextStyle;
   primaryButton: ViewStyle;
   primaryButtonText: TextStyle;
+  glassSurface: ViewStyle;
 };
 
 function buildFormStyles(colors: ThemeColors): FormStyles {
@@ -47,6 +48,15 @@ function buildFormStyles(colors: ThemeColors): FormStyles {
       fontFamily: fonts.headingBold,
       fontWeight: fonts.headingBoldWeight,
       fontSize: 15,
+    },
+    // The "glass card" treatment from the Liquid Glass design canvas: a translucent fill
+    // (over the already-blurred ambient Background) plus a hairline border. Callers add
+    // their own borderRadius/padding, which differ per surface (see CoachScreen's composer,
+    // ProgramsScreen's ProgramCard).
+    glassSurface: {
+      backgroundColor: colors.surfaceTranslucent,
+      borderWidth: 1,
+      borderColor: colors.border,
     },
   };
 }

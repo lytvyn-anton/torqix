@@ -28,12 +28,8 @@ export default function RootLayout() {
 
 function RootNavigator() {
   const { session, isLoading } = useSession();
-  const { colors, resolvedScheme, isHydrated } = useTheme();
+  const { colors, isHydrated, statusBarStyle } = useTheme();
   const appReady = useAppReady(isLoading, isHydrated);
-  // Follows the resolved theme (which can be a user override, not just the OS setting) rather
-  // than expo-status-bar's "auto", which only tracks the system appearance and would show the
-  // wrong-contrast status bar icons whenever the user picks a mode that disagrees with it.
-  const statusBarStyle = resolvedScheme === 'dark' ? 'light' : 'dark';
 
   if (!appReady) {
     return (
