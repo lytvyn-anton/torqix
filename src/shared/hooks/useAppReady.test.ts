@@ -26,7 +26,7 @@ describe('useAppReady', () => {
   it('is not ready while fonts are still loading, even if the session is ready', async () => {
     mockedUseFonts.mockReturnValue([false, null]);
 
-    const { result } = await renderHook(() => useAppReady(false));
+    const { result } = await renderHook(() => useAppReady(false, true));
 
     expect(result.current).toBe(false);
     expect(mockedHideAsync).not.toHaveBeenCalled();
@@ -35,7 +35,16 @@ describe('useAppReady', () => {
   it('is not ready while the session is still loading, even if fonts are ready', async () => {
     mockedUseFonts.mockReturnValue([true, null]);
 
-    const { result } = await renderHook(() => useAppReady(true));
+    const { result } = await renderHook(() => useAppReady(true, true));
+
+    expect(result.current).toBe(false);
+    expect(mockedHideAsync).not.toHaveBeenCalled();
+  });
+
+  it('is not ready while the theme preference is still hydrating, even if fonts and session are ready', async () => {
+    mockedUseFonts.mockReturnValue([true, null]);
+
+    const { result } = await renderHook(() => useAppReady(false, false));
 
     expect(result.current).toBe(false);
     expect(mockedHideAsync).not.toHaveBeenCalled();
@@ -44,7 +53,7 @@ describe('useAppReady', () => {
   it('is ready and hides the splash screen once fonts have loaded and the session has settled', async () => {
     mockedUseFonts.mockReturnValue([true, null]);
 
-    const { result } = await renderHook(() => useAppReady(false));
+    const { result } = await renderHook(() => useAppReady(false, true));
 
     expect(result.current).toBe(true);
     await waitFor(() => expect(mockedHideAsync).toHaveBeenCalledTimes(1));
@@ -53,7 +62,7 @@ describe('useAppReady', () => {
   it('treats a font load error as settled rather than blocking forever', async () => {
     mockedUseFonts.mockReturnValue([false, new Error('font fetch failed')]);
 
-    const { result } = await renderHook(() => useAppReady(false));
+    const { result } = await renderHook(() => useAppReady(false, true));
 
     expect(result.current).toBe(true);
     await waitFor(() => expect(mockedHideAsync).toHaveBeenCalledTimes(1));

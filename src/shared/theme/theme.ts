@@ -1,13 +1,29 @@
-// Design tokens for "Direction C — Calm Focused", chosen in the Phase 2 design pass.
-// See the design canvas linked from PLAN.md's Phase 2 section for the source mockups.
-// Hex values below are sRGB approximations of the canvas's oklch colors — React Native's
-// StyleSheet doesn't accept oklch(), so these are the closest flat equivalents.
+// Design tokens for "Liquid Glass" (Phase 2 visual refresh), light and dark variants. See
+// PLAN.md's Phase 2 section for the source design canvases. Hex values below are sRGB
+// approximations of the canvases' oklch colors — React Native's StyleSheet doesn't accept
+// oklch(), so these are the closest flat equivalents.
 
-export const colors = {
+export type ThemeColors = {
+  background: string;
+  surface: string;
+  textPrimary: string;
+  textMuted: string;
+  textFaint: string;
+  border: string;
+  borderInput: string;
+  accent: string;
+  accentDark: string;
+  accentTint: string;
+  onAccent: string;
+  error: string;
+  surfaceTranslucent: string;
+};
+
+export const lightColors: ThemeColors = {
   background: '#F7F5F0',
   surface: '#FFFFFF',
-  textPrimary: '#2E2A22',
-  textMuted: '#8A8378',
+  textPrimary: '#211F1A',
+  textMuted: '#6B665A',
   textFaint: '#C2BBAC',
   border: '#ECE6D8',
   borderInput: '#DDD3C0',
@@ -20,7 +36,27 @@ export const colors = {
   // barely shows against it; a translucent white panel on top gives the bar a distinct "glass"
   // read instead of blending into the background.
   surfaceTranslucent: 'rgba(255, 255, 255, 0.55)',
-} as const;
+};
+
+// `accentDark` is lightened rather than darkened here — it's used as the accent's
+// on-surface text/icon variant (badges, CTA labels), and a darkened sage green loses
+// contrast against the dark background where light theme relies on a darkened one against a
+// light background. Same field name, direction flipped per theme so call sites don't change.
+export const darkColors: ThemeColors = {
+  background: '#141513',
+  surface: '#272826',
+  textPrimary: '#F3F1EA',
+  textMuted: '#A39D8F',
+  textFaint: '#807A6C',
+  border: '#353634',
+  borderInput: '#484847',
+  accent: '#6F9C82',
+  accentDark: '#ABD8BE',
+  accentTint: 'rgba(111, 156, 130, 0.16)',
+  onAccent: '#FFFFFF',
+  error: '#E07267',
+  surfaceTranslucent: 'rgba(255, 255, 255, 0.08)',
+};
 
 export const radii = {
   sm: 8,
