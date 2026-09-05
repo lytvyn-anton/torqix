@@ -1,6 +1,7 @@
 import { Stack } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
+import { SettingsButton } from '../../src/features/settings/components/SettingsButton';
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
 
 export default function AppLayout() {
@@ -20,6 +21,7 @@ export default function AppLayout() {
           headerStyle: { backgroundColor: colors.background },
           headerShadowVisible: false,
           headerTintColor: colors.textPrimary,
+          headerRight: () => <SettingsButton />,
         }}
       />
       <Stack.Screen
