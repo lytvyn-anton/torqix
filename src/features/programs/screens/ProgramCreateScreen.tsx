@@ -1,11 +1,12 @@
 import { useRouter } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { formStyles } from '../../../shared/theme/formStyles';
-import { colors, spacing } from '../../../shared/theme/theme';
+import { useFormStyles } from '../../../shared/theme/formStyles';
+import { useTheme } from '../../../shared/theme/ThemeProvider';
+import { spacing, type ThemeColors } from '../../../shared/theme/theme';
 import { useCreateProgram } from '../hooks/useCreateProgram';
 
 type Props = {
@@ -21,6 +22,9 @@ export function ProgramCreateScreen({ userId }: Props) {
   const { t } = useTranslation();
   const router = useRouter();
   const createProgram = useCreateProgram(userId);
+  const { colors } = useTheme();
+  const formStyles = useFormStyles();
+  const styles = useMemo(() => buildStyles(colors), [colors]);
   // Keys are only for list identity across add/remove — day names themselves are what
   // gets saved, so a simple incrementing counter is enough (no uuid needed).
   const nextKey = useRef(1);
@@ -106,7 +110,7 @@ export function ProgramCreateScreen({ userId }: Props) {
         )}
 
         <TouchableOpacity
-          style={[styles.saveButton, !canSave && styles.buttonDisabled]}
+          style={[formStyles.primaryButton, styles.saveButton, !canSave && styles.buttonDisabled]}
           onPress={handleSave}
           disabled={!canSave}
           testID="program-create-save"
@@ -119,54 +123,55 @@ export function ProgramCreateScreen({ userId }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  scroll: {
-    flex: 1,
-  },
-  container: {
-    padding: spacing.xl,
-    gap: spacing.sm,
-  },
-  label: {
-    fontWeight: '600',
-    marginTop: spacing.sm,
-    color: colors.textPrimary,
-  },
-  dayRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  dayInput: {
-    flex: 1,
-  },
-  removeDay: {
-    width: 32,
-    height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  removeDayText: {
-    fontSize: 20,
-    color: colors.textMuted,
-  },
-  addDay: {
-    alignSelf: 'flex-start',
-    paddingVertical: spacing.sm,
-  },
-  addDayText: {
-    color: colors.accentDark,
-    fontWeight: '600',
-  },
-  saveButton: {
-    ...formStyles.primaryButton,
-    marginTop: spacing.xl,
-  },
-  buttonDisabled: {
-    opacity: 0.5,
-  },
-});
+function buildStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    safeArea: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    scroll: {
+      flex: 1,
+    },
+    container: {
+      padding: spacing.xl,
+      gap: spacing.sm,
+    },
+    label: {
+      fontWeight: '600',
+      marginTop: spacing.sm,
+      color: colors.textPrimary,
+    },
+    dayRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+    },
+    dayInput: {
+      flex: 1,
+    },
+    removeDay: {
+      width: 32,
+      height: 32,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    removeDayText: {
+      fontSize: 20,
+      color: colors.textMuted,
+    },
+    addDay: {
+      alignSelf: 'flex-start',
+      paddingVertical: spacing.sm,
+    },
+    addDayText: {
+      color: colors.accentDark,
+      fontWeight: '600',
+    },
+    saveButton: {
+      marginTop: spacing.xl,
+    },
+    buttonDisabled: {
+      opacity: 0.5,
+    },
+  });
+}

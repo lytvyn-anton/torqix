@@ -2,13 +2,14 @@ import { Link } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Text, TextInput, TouchableOpacity, View } from 'react-native';
 
-import { authFormStyles as styles } from '../authFormStyles';
+import { useAuthFormStyles } from '../authFormStyles';
 import { AuthScreenContainer } from '../components/AuthScreenContainer';
 import { useAuthForm } from '../hooks/useAuthForm';
 import { useSignUp } from '../hooks/useSignUp';
 
 export function SignUpScreen() {
   const { t } = useTranslation();
+  const styles = useAuthFormStyles();
   const signUp = useSignUp();
   const { email, setEmail, password, setPassword, fieldError, handleSubmit } = useAuthForm(
     signUp.mutate,

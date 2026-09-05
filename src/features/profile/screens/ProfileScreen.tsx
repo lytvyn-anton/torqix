@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useRouter } from 'expo-router';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
@@ -11,8 +12,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useSignOut } from '../../auth/hooks/useSignOut';
-import { formStyles } from '../../../shared/theme/formStyles';
-import { colors, spacing } from '../../../shared/theme/theme';
+import { useFormStyles } from '../../../shared/theme/formStyles';
+import { useTheme } from '../../../shared/theme/ThemeProvider';
+import { spacing, type ThemeColors } from '../../../shared/theme/theme';
 import { MultiOptionPicker } from '../components/MultiOptionPicker';
 import { OptionPicker } from '../components/OptionPicker';
 import { useProfile } from '../hooks/useProfile';
@@ -58,6 +60,8 @@ export function ProfileScreen({ userId }: Props) {
   const { t } = useTranslation();
   const signOut = useSignOut();
   const profileQuery = useProfile(userId);
+  const { colors } = useTheme();
+  const styles = useMemo(() => buildStyles(colors), [colors]);
 
   if (profileQuery.isLoading) {
     return (
@@ -98,8 +102,12 @@ type FormProps = {
 
 function ProfileForm({ userId, profile }: FormProps) {
   const { t } = useTranslation();
+  const router = useRouter();
   const updateProfile = useUpdateProfile(userId);
   const signOut = useSignOut();
+  const { colors } = useTheme();
+  const formStyles = useFormStyles();
+  const styles = useMemo(() => buildStyles(colors), [colors]);
 
   const [age, setAge] = useState(profile?.age?.toString() ?? '');
   const [heightCm, setHeightCm] = useState(profile?.heightCm?.toString() ?? '');
@@ -144,9 +152,18 @@ function ProfileForm({ userId, profile }: FormProps) {
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.container}>
+        <TouchableOpacity
+          onPress={() => router.push('/settings')}
+          style={styles.settingsLink}
+          testID="profile-settings-link"
+          accessibilityRole="button"
+        >
+          <Text style={styles.settingsLinkText}>{t('settings.title')}</Text>
+        </TouchableOpacity>
+
         <Text style={styles.label}>{t('profile.ageLabel')}</Text>
         <TextInput
-          style={styles.input}
+          style={formStyles.input}
           value={age}
           onChangeText={setAge}
           keyboardType="number-pad"
@@ -155,7 +172,7 @@ function ProfileForm({ userId, profile }: FormProps) {
 
         <Text style={styles.label}>{t('profile.heightLabel')}</Text>
         <TextInput
-          style={styles.input}
+          style={formStyles.input}
           value={heightCm}
           onChangeText={setHeightCm}
           keyboardType="decimal-pad"
@@ -164,7 +181,7 @@ function ProfileForm({ userId, profile }: FormProps) {
 
         <Text style={styles.label}>{t('profile.weightLabel')}</Text>
         <TextInput
-          style={styles.input}
+          style={formStyles.input}
           value={weightKg}
           onChangeText={setWeightKg}
           keyboardType="decimal-pad"
@@ -173,7 +190,7 @@ function ProfileForm({ userId, profile }: FormProps) {
 
         <Text style={styles.label}>{t('profile.sessionMinutesLabel')}</Text>
         <TextInput
-          style={styles.input}
+          style={formStyles.input}
           value={sessionMinutes}
           onChangeText={setSessionMinutes}
           keyboardType="number-pad"
@@ -182,7 +199,7 @@ function ProfileForm({ userId, profile }: FormProps) {
 
         <Text style={styles.label}>{t('profile.availableDaysPerWeekLabel')}</Text>
         <TextInput
-          style={styles.input}
+          style={formStyles.input}
           value={availableDaysPerWeek}
           onChangeText={setAvailableDaysPerWeek}
           keyboardType="number-pad"
@@ -242,13 +259,17 @@ function ProfileForm({ userId, profile }: FormProps) {
         {updateProfile.isSuccess && <Text testID="profile-saved">{t('profile.saved')}</Text>}
 
         <TouchableOpacity
-          style={[styles.saveButton, updateProfile.isPending && styles.buttonDisabled]}
+          style={[
+            formStyles.primaryButton,
+            styles.saveButton,
+            updateProfile.isPending && styles.buttonDisabled,
+          ]}
           onPress={handleSave}
           disabled={updateProfile.isPending}
           testID="profile-save"
           accessibilityRole="button"
         >
-          <Text style={styles.saveButtonText}>{t('profile.save')}</Text>
+          <Text style={formStyles.primaryButtonText}>{t('profile.save')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -266,43 +287,54 @@ function ProfileForm({ userId, profile }: FormProps) {
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  scroll: {
-    flex: 1,
-  },
-  container: {
-    padding: spacing.xl,
-    gap: spacing.sm,
-  },
-  centered: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.background,
-    gap: spacing.lg,
-  },
-  label: {
-    fontWeight: '600',
-    marginTop: spacing.sm,
-    color: colors.textPrimary,
-  },
-  input: formStyles.input,
-  error: formStyles.error,
-  saveButton: {
-    ...formStyles.primaryButton,
-    marginTop: spacing.xl,
-  },
-  saveButtonText: formStyles.primaryButtonText,
-  signOut: {
-    textAlign: 'center',
-    marginTop: spacing.xl,
-    color: colors.textMuted,
-  },
-  buttonDisabled: {
-    opacity: 0.5,
-  },
-});
+function buildStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    safeArea: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    scroll: {
+      flex: 1,
+    },
+    container: {
+      padding: spacing.xl,
+      gap: spacing.sm,
+    },
+    centered: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.background,
+      gap: spacing.lg,
+    },
+    label: {
+      fontWeight: '600',
+      marginTop: spacing.sm,
+      color: colors.textPrimary,
+    },
+    error: {
+      color: colors.error,
+    },
+    settingsLink: {
+      paddingVertical: spacing.md,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+      marginBottom: spacing.sm,
+    },
+    settingsLinkText: {
+      color: colors.accentDark,
+      fontWeight: '600',
+    },
+    saveButton: {
+      marginTop: spacing.xl,
+    },
+    signOut: {
+      textAlign: 'center',
+      marginTop: spacing.xl,
+      color: colors.textMuted,
+    },
+    buttonDisabled: {
+      opacity: 0.5,
+    },
+  });
+}

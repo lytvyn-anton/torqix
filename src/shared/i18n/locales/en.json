@@ -105,5 +105,12 @@
     "comingSoonBody": "Ask about your program, get form cues, and let it adjust your plan based on how your workouts are going.",
     "comingSoonBadge": "Arriving in Phase 4",
     "messagePlaceholder": "Message your coach"
+  },
+  "settings": {
+    "title": "Settings",
+    "themeLabel": "Theme",
+    "themeLight": "Light",
+    "themeDark": "Dark",
+    "themeSystem": "System"
   }
 }

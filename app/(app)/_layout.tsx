@@ -1,10 +1,11 @@
 import { Stack } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
-import { colors } from '../../src/shared/theme/theme';
+import { useTheme } from '../../src/shared/theme/ThemeProvider';
 
 export default function AppLayout() {
   const { t } = useTranslation();
+  const { colors } = useTheme();
 
   return (
     <Stack
@@ -26,6 +27,16 @@ export default function AppLayout() {
         options={{
           headerShown: true,
           title: t('programs.createTitle'),
+          headerStyle: { backgroundColor: colors.background },
+          headerShadowVisible: false,
+          headerTintColor: colors.textPrimary,
+        }}
+      />
+      <Stack.Screen
+        name="settings"
+        options={{
+          headerShown: true,
+          title: t('settings.title'),
           headerStyle: { backgroundColor: colors.background },
           headerShadowVisible: false,
           headerTintColor: colors.textPrimary,

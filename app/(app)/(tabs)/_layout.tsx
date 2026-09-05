@@ -22,7 +22,8 @@ import {
   type TabIconProps,
 } from '../../../src/shared/components/icons/TabIcons';
 import { TAB_BAR_IOS_BOTTOM_TRIM } from '../../../src/shared/theme/tabBarGeometry';
-import { colors, shadows, spacing } from '../../../src/shared/theme/theme';
+import { useTheme, useThemedStyles } from '../../../src/shared/theme/ThemeProvider';
+import { shadows, spacing, type ThemeColors } from '../../../src/shared/theme/theme';
 
 // Fixed height for the floating pill bar (overrides the library's own 49px + safe-area-inset
 // default — see getTabBarHeight in expo-router's bundled BottomTabBar.js). Floating clear of
@@ -51,7 +52,7 @@ const TABS: {
     titleKey: 'programs.title',
     Icon: ProgramsIcon,
     headerRight: () => (
-      <View style={styles.headerRight}>
+      <View style={staticStyles.headerRight}>
         <NewProgramButton />
         <ProfileAvatarButton />
       </View>
@@ -60,6 +61,14 @@ const TABS: {
   { name: 'history', titleKey: 'history.title', Icon: HistoryIcon },
   { name: 'coach', titleKey: 'coach.title', Icon: CoachIcon },
 ];
+
+function buildTabPillStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    tabPillActive: {
+      backgroundColor: colors.accentTint,
+    },
+  });
+}
 
 // The library's own tabBarActiveBackgroundColor spans the full tab column with no rounding
 // in the 'uikit' variant we use — taking over the button lets the pill/glass highlight hug
@@ -74,22 +83,44 @@ const TABS: {
 // `onPress`/`onLongPress`, `testID`) is forwarded straight to PlatformPressable unpicked —
 // we only need to read `children`/`style` to build the pill, and `aria-selected` to decide
 // whether it's the active one.
+//
+// Reads the theme itself (rather than taking colors as a prop) so it stays a stable,
+// module-scope function reference passed straight to `tabBarButton` below — the library
+// renders that prop as a JSX element type, so a new function identity on every TabsLayout
+// render (e.g. a wrapper closure capturing colors) would unmount/remount every tab button on
+// every render, not just on an actual theme change.
 function GlassTabButton({
   children,
   style,
   'aria-selected': focused,
   ...rest
 }: BottomTabBarButtonProps) {
+  const themedStyles = useThemedStyles(buildTabPillStyles);
+
   return (
-    <PlatformPressable style={[style, styles.tabButtonOverride]} aria-selected={focused} {...rest}>
-      <View style={[styles.tabPill, focused && styles.tabPillActive]}>{children}</View>
+    <PlatformPressable
+      style={[style, staticStyles.tabButtonOverride]}
+      aria-selected={focused}
+      {...rest}
+    >
+      <View style={[staticStyles.tabPill, focused && themedStyles.tabPillActive]}>{children}</View>
     </PlatformPressable>
   );
+}
+
+function buildTabBarTintStyle(colors: ThemeColors) {
+  return StyleSheet.create({
+    tabBarTint: {
+      backgroundColor: colors.surfaceTranslucent,
+    },
+  });
 }
 
 export default function TabsLayout() {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
+  const { colors, resolvedScheme } = useTheme();
+  const tintStyles = useThemedStyles(buildTabBarTintStyle);
 
   return (
     <Tabs
@@ -147,9 +178,13 @@ export default function TabsLayout() {
         // needs to render outside the bar's bounds) isn't clipped away by the same
         // overflow: 'hidden' that rounds off the blur layer's corners.
         tabBarBackground: () => (
-          <View style={[StyleSheet.absoluteFill, styles.tabBarBackgroundClip]}>
-            <BlurView intensity={80} tint="light" style={StyleSheet.absoluteFill} />
-            <View style={[StyleSheet.absoluteFill, styles.tabBarTint]} />
+          <View style={[StyleSheet.absoluteFill, staticStyles.tabBarBackgroundClip]}>
+            <BlurView
+              intensity={80}
+              tint={resolvedScheme === 'dark' ? 'dark' : 'light'}
+              style={StyleSheet.absoluteFill}
+            />
+            <View style={[StyleSheet.absoluteFill, tintStyles.tabBarTint]} />
           </View>
         ),
       }}
@@ -169,13 +204,11 @@ export default function TabsLayout() {
   );
 }
 
-const styles = StyleSheet.create({
+// Layout-only, theme-independent — built once at module scope.
+const staticStyles = StyleSheet.create({
   headerRight: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  tabBarTint: {
-    backgroundColor: colors.surfaceTranslucent,
   },
   tabBarBackgroundClip: {
     borderRadius: TAB_BAR_HEIGHT / 2,
@@ -206,8 +239,5 @@ const styles = StyleSheet.create({
     // background after a tab-switch re-render (rounded right after mount, square after
     // the first transition) — forcing an explicit clip layer keeps it stable.
     overflow: 'hidden',
-  },
-  tabPillActive: {
-    backgroundColor: colors.accentTint,
   },
 });

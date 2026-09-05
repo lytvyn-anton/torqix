@@ -1,7 +1,8 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { fireEvent, screen } from '@testing-library/react-native';
 import type { ReactNode } from 'react';
 
 import '../../../shared/i18n';
+import { renderWithProviders as render } from '../../../shared/testing/renderWithProviders';
 import { useSignUp } from '../hooks/useSignUp';
 import { SignUpScreen } from './SignUpScreen';
 

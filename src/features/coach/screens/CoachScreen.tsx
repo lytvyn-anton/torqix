@@ -1,15 +1,19 @@
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { CoachIcon } from '../../../shared/components/icons/TabIcons';
 import { useFloatingTabBarClearance } from '../../../shared/hooks/useFloatingTabBarClearance';
-import { colors, fonts, radii, spacing } from '../../../shared/theme/theme';
+import { useTheme } from '../../../shared/theme/ThemeProvider';
+import { fonts, radii, spacing, type ThemeColors } from '../../../shared/theme/theme';
 
 // Static "coming soon" tab — the real AI coach feature builds in Phase 4/5. This exists
 // now so the bottom nav has all 4 tabs wired for Phase 2.
 export function CoachScreen() {
   const { t } = useTranslation();
   const tabBarClearance = useFloatingTabBarClearance();
+  const { colors } = useTheme();
+  const styles = useMemo(() => buildStyles(colors), [colors]);
 
   return (
     <View style={styles.container} testID="coach-placeholder">
@@ -28,61 +32,63 @@ export function CoachScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.background,
-    padding: spacing.xl,
-    gap: spacing.sm,
-  },
-  icon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: colors.accentTint,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.sm,
-  },
-  title: {
-    fontFamily: fonts.heading,
-    fontWeight: fonts.headingWeight,
-    fontSize: 18,
-    color: colors.textPrimary,
-    textAlign: 'center',
-  },
-  body: {
-    fontSize: 14,
-    color: colors.textMuted,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  badge: {
-    backgroundColor: colors.accentTint,
-    borderRadius: radii.lg,
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.md,
-    marginTop: spacing.sm,
-  },
-  badgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.accentDark,
-  },
-  composer: {
-    position: 'absolute',
-    left: spacing.xl,
-    right: spacing.xl,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.xl,
-    padding: spacing.md,
-    backgroundColor: colors.surface,
-  },
-  composerPlaceholder: {
-    fontSize: 14,
-    color: colors.textFaint,
-  },
-});
+function buildStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.background,
+      padding: spacing.xl,
+      gap: spacing.sm,
+    },
+    icon: {
+      width: 64,
+      height: 64,
+      borderRadius: 32,
+      backgroundColor: colors.accentTint,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: spacing.sm,
+    },
+    title: {
+      fontFamily: fonts.heading,
+      fontWeight: fonts.headingWeight,
+      fontSize: 18,
+      color: colors.textPrimary,
+      textAlign: 'center',
+    },
+    body: {
+      fontSize: 14,
+      color: colors.textMuted,
+      textAlign: 'center',
+      lineHeight: 20,
+    },
+    badge: {
+      backgroundColor: colors.accentTint,
+      borderRadius: radii.lg,
+      paddingVertical: spacing.xs,
+      paddingHorizontal: spacing.md,
+      marginTop: spacing.sm,
+    },
+    badgeText: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: colors.accentDark,
+    },
+    composer: {
+      position: 'absolute',
+      left: spacing.xl,
+      right: spacing.xl,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radii.xl,
+      padding: spacing.md,
+      backgroundColor: colors.surface,
+    },
+    composerPlaceholder: {
+      fontSize: 14,
+      color: colors.textFaint,
+    },
+  });
+}
