@@ -92,8 +92,35 @@
     "dayPlaceholder": "e.g. Push day",
     "removeDay": "Remove day",
     "addDay": "+ Add day",
+    "exercisesLabel": "Exercises",
+    "addExercise": "+ Add exercise",
+    "removeExercise": "Remove exercise",
+    "setsPlaceholder": "Sets",
+    "repsPlaceholder": "Reps",
+    "weightPlaceholder": "kg (optional)",
+    "orphanedExercisesError": "Give every day with exercises a name before saving.",
     "create": "Create program",
     "createError": "Couldn't create the program. Try again."
+  },
+  "exercises": {
+    "pickerTitle": "Choose an exercise",
+    "searchPlaceholder": "Search exercises",
+    "loadError": "Couldn't load exercises.",
+    "noResults": "No exercises found.",
+    "allMuscleGroups": "All",
+    "close": "Close",
+    "muscleGroup": {
+      "chest": "Chest",
+      "back": "Back",
+      "legs": "Legs",
+      "shoulders": "Shoulders",
+      "biceps": "Biceps",
+      "triceps": "Triceps",
+      "core": "Core",
+      "glutes": "Glutes",
+      "calves": "Calves",
+      "full_body": "Full body"
+    }
   },
   "history": {
     "title": "History",

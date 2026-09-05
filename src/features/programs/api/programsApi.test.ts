@@ -101,26 +101,32 @@ describe('getPrograms', () => {
   });
 });
 
-// Builds the mocked chains for createProgram's three sequential writes: workout_programs
-// insert().select().single() (program), program_days insert() (days), and workout_programs
+// Builds the mocked chains for createProgram's four sequential writes: workout_programs
+// insert().select().single() (program), program_days insert().select() (days),
+// program_day_exercises insert() (day exercises), and workout_programs
 // update().eq().eq().neq() (archiving other active programs) — plus the
-// workout_programs delete().eq() used to clean up if the days insert fails.
+// workout_programs delete().eq() used to clean up if a later insert fails.
 function mockCreateProgramFlow({
   programResult,
-  daysResult = { error: null },
+  daysResult = { data: [], error: null },
+  dayExercisesResult = { error: null },
   archiveResult = { error: null },
   deleteResult = { error: null },
 }: {
   programResult: { data: unknown; error: unknown };
-  daysResult?: { error: unknown };
+  daysResult?: { data: unknown; error: unknown };
+  dayExercisesResult?: { error: unknown };
   archiveResult?: { error: unknown };
   deleteResult?: { error: unknown };
 }) {
   const single = jest.fn().mockResolvedValue(programResult);
-  const select = jest.fn().mockReturnValue({ single });
-  const insertProgram = jest.fn().mockReturnValue({ select });
+  const selectProgram = jest.fn().mockReturnValue({ single });
+  const insertProgram = jest.fn().mockReturnValue({ select: selectProgram });
 
-  const insertDays = jest.fn().mockResolvedValue(daysResult);
+  const selectDays = jest.fn().mockResolvedValue(daysResult);
+  const insertDays = jest.fn().mockReturnValue({ select: selectDays });
+
+  const insertDayExercises = jest.fn().mockResolvedValue(dayExercisesResult);
 
   const archiveNeq = jest.fn().mockResolvedValue(archiveResult);
   const archiveEqStatus = jest.fn().mockReturnValue({ neq: archiveNeq });
@@ -130,16 +136,16 @@ function mockCreateProgramFlow({
   const deleteEq = jest.fn().mockResolvedValue(deleteResult);
   const deleteFn = jest.fn().mockReturnValue({ eq: deleteEq });
 
-  mockedFrom.mockImplementation(
-    (table: string) =>
-      (table === 'program_days'
-        ? { insert: insertDays }
-        : { insert: insertProgram, update, delete: deleteFn }) as never,
-  );
+  mockedFrom.mockImplementation((table: string) => {
+    if (table === 'program_days') return { insert: insertDays } as never;
+    if (table === 'program_day_exercises') return { insert: insertDayExercises } as never;
+    return { insert: insertProgram, update, delete: deleteFn } as never;
+  });
 
   return {
     insertProgram,
     insertDays,
+    insertDayExercises,
     update,
     archiveEqUser,
     archiveEqStatus,
@@ -160,29 +166,60 @@ describe('createProgram', () => {
     expect(mockedFrom.mock.calls.length).toBe(callsBefore);
   });
 
-  it('inserts the program, its days in order, archives other active programs, and returns the created program', async () => {
-    const { insertProgram, insertDays, update, archiveEqUser, archiveEqStatus, archiveNeq } =
-      mockCreateProgramFlow({
-        programResult: {
-          data: {
-            id: 'program-1',
-            name: 'Push / Pull / Legs',
-            status: 'active',
-            created_at: '2026-09-04',
-          },
-          error: null,
+  it("inserts the program, its days, each day's exercises, archives other active programs, and returns the created program", async () => {
+    const {
+      insertProgram,
+      insertDays,
+      insertDayExercises,
+      update,
+      archiveEqUser,
+      archiveEqStatus,
+      archiveNeq,
+    } = mockCreateProgramFlow({
+      programResult: {
+        data: {
+          id: 'program-1',
+          name: 'Push / Pull / Legs',
+          status: 'active',
+          created_at: '2026-09-04',
         },
-      });
+        error: null,
+      },
+      // Returned out of insertion order on purpose, to prove the zip-back sorts by order_index.
+      daysResult: {
+        data: [
+          { id: 'day-pull', order_index: 1 },
+          { id: 'day-push', order_index: 0 },
+        ],
+        error: null,
+      },
+    });
 
     const result = await createProgram('user-1', {
       name: 'Push / Pull / Legs',
-      days: ['Push day', 'Pull day'],
+      days: [
+        {
+          name: 'Push day',
+          exercises: [{ exerciseId: 'ex-1', sets: 3, reps: 10, targetWeight: 40 }],
+        },
+        { name: 'Pull day', exercises: [] },
+      ],
     });
 
     expect(insertProgram).toHaveBeenCalledWith({ user_id: 'user-1', name: 'Push / Pull / Legs' });
     expect(insertDays).toHaveBeenCalledWith([
       { program_id: 'program-1', name: 'Push day', order_index: 0 },
       { program_id: 'program-1', name: 'Pull day', order_index: 1 },
+    ]);
+    expect(insertDayExercises).toHaveBeenCalledWith([
+      {
+        program_day_id: 'day-push',
+        exercise_id: 'ex-1',
+        order_index: 0,
+        sets: 3,
+        reps: 10,
+        target_weight: 40,
+      },
     ]);
     expect(update).toHaveBeenCalledWith({ status: 'archived' });
     expect(archiveEqUser).toHaveBeenCalledWith('user_id', 'user-1');
@@ -196,11 +233,27 @@ describe('createProgram', () => {
     });
   });
 
+  it('skips the day-exercises insert entirely when no day has any exercises', async () => {
+    const { insertDayExercises } = mockCreateProgramFlow({
+      programResult: {
+        data: { id: 'program-1', name: 'X', status: 'active', created_at: '2026-09-04' },
+        error: null,
+      },
+      daysResult: { data: [{ id: 'day-1', order_index: 0 }], error: null },
+    });
+
+    await createProgram('user-1', { name: 'X', days: [{ name: 'Day 1', exercises: [] }] });
+
+    expect(insertDayExercises).not.toHaveBeenCalled();
+  });
+
   it('throws when the program insert fails, without inserting days or archiving', async () => {
     const error = new Error('rls denied');
     const { insertDays, update } = mockCreateProgramFlow({ programResult: { data: null, error } });
 
-    await expect(createProgram('user-1', { name: 'X', days: ['Day 1'] })).rejects.toBe(error);
+    await expect(
+      createProgram('user-1', { name: 'X', days: [{ name: 'Day 1', exercises: [] }] }),
+    ).rejects.toBe(error);
     expect(insertDays).not.toHaveBeenCalled();
     expect(update).not.toHaveBeenCalled();
   });
@@ -212,26 +265,85 @@ describe('createProgram', () => {
         data: { id: 'program-1', name: 'X', status: 'active', created_at: '2026-09-04' },
         error: null,
       },
-      daysResult: { error },
+      daysResult: { data: null, error },
     });
 
-    await expect(createProgram('user-1', { name: 'X', days: ['Day 1'] })).rejects.toBe(error);
+    await expect(
+      createProgram('user-1', { name: 'X', days: [{ name: 'Day 1', exercises: [] }] }),
+    ).rejects.toBe(error);
     expect(deleteFn).toHaveBeenCalled();
     expect(deleteEq).toHaveBeenCalledWith('id', 'program-1');
     expect(update).not.toHaveBeenCalled();
   });
 
-  it('throws when archiving other active programs fails', async () => {
+  it('deletes the orphaned program and throws when the day-exercises insert fails', async () => {
     const error = new Error('rls denied');
-    const { deleteFn } = mockCreateProgramFlow({
+    const { deleteFn, deleteEq, update } = mockCreateProgramFlow({
       programResult: {
         data: { id: 'program-1', name: 'X', status: 'active', created_at: '2026-09-04' },
         error: null,
       },
+      daysResult: { data: [{ id: 'day-1', order_index: 0 }], error: null },
+      dayExercisesResult: { error },
+    });
+
+    await expect(
+      createProgram('user-1', {
+        name: 'X',
+        days: [
+          {
+            name: 'Day 1',
+            exercises: [{ exerciseId: 'ex-1', sets: 3, reps: 10, targetWeight: null }],
+          },
+        ],
+      }),
+    ).rejects.toBe(error);
+    expect(deleteFn).toHaveBeenCalled();
+    expect(deleteEq).toHaveBeenCalledWith('id', 'program-1');
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('deletes the just-created program and throws when archiving other active programs fails', async () => {
+    const error = new Error('rls denied');
+    const { deleteFn, deleteEq } = mockCreateProgramFlow({
+      programResult: {
+        data: { id: 'program-1', name: 'X', status: 'active', created_at: '2026-09-04' },
+        error: null,
+      },
+      daysResult: { data: [{ id: 'day-1', order_index: 0 }], error: null },
       archiveResult: { error },
     });
 
-    await expect(createProgram('user-1', { name: 'X', days: ['Day 1'] })).rejects.toBe(error);
-    expect(deleteFn).not.toHaveBeenCalled();
+    await expect(
+      createProgram('user-1', { name: 'X', days: [{ name: 'Day 1', exercises: [] }] }),
+    ).rejects.toBe(error);
+    // Otherwise a failed archive leaves two "active" programs for this user — exactly
+    // the state this function exists to prevent.
+    expect(deleteFn).toHaveBeenCalled();
+    expect(deleteEq).toHaveBeenCalledWith('id', 'program-1');
+  });
+
+  it('deletes the orphaned program and throws when the days insert returns fewer rows than requested', async () => {
+    const { deleteFn, deleteEq, insertDayExercises } = mockCreateProgramFlow({
+      programResult: {
+        data: { id: 'program-1', name: 'X', status: 'active', created_at: '2026-09-04' },
+        error: null,
+      },
+      // Only one row back for two requested days — e.g. a partial-insert edge case.
+      daysResult: { data: [{ id: 'day-1', order_index: 0 }], error: null },
+    });
+
+    await expect(
+      createProgram('user-1', {
+        name: 'X',
+        days: [
+          { name: 'Day 1', exercises: [] },
+          { name: 'Day 2', exercises: [] },
+        ],
+      }),
+    ).rejects.toThrow('createProgram: expected 2 inserted days, got 1');
+    expect(deleteFn).toHaveBeenCalled();
+    expect(deleteEq).toHaveBeenCalledWith('id', 'program-1');
+    expect(insertDayExercises).not.toHaveBeenCalled();
   });
 });
