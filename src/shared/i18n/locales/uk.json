@@ -92,8 +92,35 @@
     "dayPlaceholder": "напр. День грудей",
     "removeDay": "Видалити день",
     "addDay": "+ Додати день",
+    "exercisesLabel": "Вправи",
+    "addExercise": "+ Додати вправу",
+    "removeExercise": "Видалити вправу",
+    "setsPlaceholder": "Підходи",
+    "repsPlaceholder": "Повтори",
+    "weightPlaceholder": "кг (необов'язково)",
+    "orphanedExercisesError": "Вкажіть назву для кожного дня з доданими вправами перед збереженням.",
     "create": "Створити програму",
     "createError": "Не вдалося створити програму. Спробуйте ще раз."
+  },
+  "exercises": {
+    "pickerTitle": "Оберіть вправу",
+    "searchPlaceholder": "Пошук вправ",
+    "loadError": "Не вдалося завантажити вправи.",
+    "noResults": "Вправ не знайдено.",
+    "allMuscleGroups": "Усі",
+    "close": "Закрити",
+    "muscleGroup": {
+      "chest": "Груди",
+      "back": "Спина",
+      "legs": "Ноги",
+      "shoulders": "Плечі",
+      "biceps": "Біцепс",
+      "triceps": "Трицепс",
+      "core": "Прес",
+      "glutes": "Сідниці",
+      "calves": "Литки",
+      "full_body": "Все тіло"
+    }
   },
   "history": {
     "title": "Історія",
