@@ -2,6 +2,7 @@ import { supabase } from '../../../shared/api/supabase';
 import {
   cancelSession,
   completeSession,
+  getExerciseProgress,
   getProgramDayExercises,
   getProgramDays,
   getSession,
@@ -355,5 +356,53 @@ describe('getWorkoutHistory', () => {
     const result = await getWorkoutHistory('user-1');
 
     expect(result[0].programDayName).toBe('');
+  });
+});
+
+describe('getExerciseProgress', () => {
+  it('queries done sessions for the exercise, newest first, mapped', async () => {
+    const orderSetIndex = jest.fn().mockResolvedValue({
+      data: [
+        {
+          id: 'log-1',
+          set_index: 0,
+          reps_done: 10,
+          weight: 40,
+          workout_sessions: { scheduled_date: '2026-09-01', status: 'done' },
+        },
+      ],
+      error: null,
+    });
+    const orderDate = jest.fn().mockReturnValue({ order: orderSetIndex });
+    const eqStatus = jest.fn().mockReturnValue({ order: orderDate });
+    const eqExercise = jest.fn().mockReturnValue({ eq: eqStatus });
+    const select = jest.fn().mockReturnValue({ eq: eqExercise });
+    mockedFrom.mockReturnValue({ select } as never);
+
+    const result = await getExerciseProgress('ex-1');
+
+    expect(mockedFrom).toHaveBeenCalledWith('set_logs');
+    expect(eqExercise).toHaveBeenCalledWith('exercise_id', 'ex-1');
+    expect(eqStatus).toHaveBeenCalledWith('workout_sessions.status', 'done');
+    expect(orderDate).toHaveBeenCalledWith('scheduled_date', {
+      foreignTable: 'workout_sessions',
+      ascending: false,
+    });
+    expect(orderSetIndex).toHaveBeenCalledWith('set_index', { ascending: true });
+    expect(result).toEqual([
+      { id: 'log-1', scheduledDate: '2026-09-01', setIndex: 0, repsDone: 10, weight: 40 },
+    ]);
+  });
+
+  it('throws the supabase error', async () => {
+    const error = new Error('rls denied');
+    const orderSetIndex = jest.fn().mockResolvedValue({ data: null, error });
+    mockedFrom.mockReturnValue({
+      select: () => ({
+        eq: () => ({ eq: () => ({ order: () => ({ order: orderSetIndex }) }) }),
+      }),
+    } as never);
+
+    await expect(getExerciseProgress('ex-1')).rejects.toBe(error);
   });
 });

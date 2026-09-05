@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -42,6 +43,7 @@ function defaultDraft(exercise: ProgramDayExerciseDetail): Draft {
 
 export function SetLoggingScreen({ userId, sessionId, onCancelled, onCompleted }: Props) {
   const { t } = useTranslation();
+  const router = useRouter();
   const { colors } = useTheme();
   const formStyles = useFormStyles();
   const styles = useMemo(() => buildStyles(colors), [colors]);
@@ -132,7 +134,21 @@ export function SetLoggingScreen({ userId, sessionId, onCancelled, onCompleted }
           const loggedSets = loggedSetsFor(exercise.exerciseId);
           return (
             <View key={exercise.id} style={[formStyles.glassSurface, styles.exerciseCard]}>
-              <Text style={styles.exerciseName}>{exercise.exerciseName}</Text>
+              <View style={styles.exerciseHeader}>
+                <Text style={styles.exerciseName}>{exercise.exerciseName}</Text>
+                <TouchableOpacity
+                  onPress={() =>
+                    router.push({
+                      pathname: '/exercise-progress/[exerciseId]',
+                      params: { exerciseId: exercise.exerciseId, name: exercise.exerciseName },
+                    })
+                  }
+                  accessibilityRole="button"
+                  testID={`set-logging-${exercise.id}-progress`}
+                >
+                  <Text style={styles.progressLink}>{t('workouts.viewProgress')}</Text>
+                </TouchableOpacity>
+              </View>
               {(exercise.sets != null || exercise.reps != null) && (
                 <Text style={styles.target}>
                   {t('workouts.target', { sets: exercise.sets ?? '—', reps: exercise.reps ?? '—' })}
@@ -247,10 +263,20 @@ function buildStyles(colors: ThemeColors) {
       padding: spacing.md,
       gap: spacing.xs,
     },
+    exerciseHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
     exerciseName: {
       color: colors.textPrimary,
       fontWeight: '700',
       fontSize: 16,
+    },
+    progressLink: {
+      color: colors.accentDark,
+      fontSize: 12,
+      fontWeight: '600',
     },
     target: {
       color: colors.textMuted,

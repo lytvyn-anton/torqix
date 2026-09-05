@@ -49,3 +49,11 @@ export type WorkoutHistoryEntry = {
   scheduledDate: string;
   status: WorkoutSessionStatus;
 };
+
+export type ExerciseProgressEntry = {
+  id: string;
+  scheduledDate: string;
+  setIndex: number;
+  repsDone: number | null;
+  weight: number | null;
+};

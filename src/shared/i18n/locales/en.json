@@ -150,6 +150,7 @@
     "repsPlaceholder": "Reps",
     "weightPlaceholder": "kg",
     "target": "Target: {{sets}} × {{reps}}",
+    "viewProgress": "Progress",
     "cancelSheetTitle": "Cancel this workout?",
     "cancelSheetBody": "Sets you've already logged will be kept.",
     "cancelSheetConfirm": "Cancel workout",
@@ -165,6 +166,12 @@
     "emptyBody": "Finish a workout to see it here.",
     "statusDone": "Done",
     "statusSkipped": "Skipped"
+  },
+  "progress": {
+    "title": "Progress",
+    "loadError": "Couldn't load your progress for this exercise.",
+    "emptyBody": "Log a set during a workout to start tracking progress here.",
+    "setEntry": "Set {{index}}: {{weight}} kg × {{reps}}"
   },
   "coach": {
     "title": "Coach",

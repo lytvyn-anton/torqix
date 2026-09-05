@@ -53,6 +53,16 @@ export default function AppLayout() {
         }}
       />
       <Stack.Screen name="workout-session" options={{ headerShown: false }} />
+      <Stack.Screen
+        name="exercise-progress/[exerciseId]"
+        options={{
+          headerShown: true,
+          title: t('progress.title'),
+          headerStyle: { backgroundColor: colors.background },
+          headerShadowVisible: false,
+          headerTintColor: colors.textPrimary,
+        }}
+      />
       <Stack.Screen name="workout-complete" options={{ headerShown: false }} />
       <Stack.Screen
         name="settings"
