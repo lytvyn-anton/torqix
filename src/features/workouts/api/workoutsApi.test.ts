@@ -7,6 +7,7 @@ import {
   getSession,
   getSetLogs,
   getTodaySession,
+  getWorkoutHistory,
   getWorkoutSummary,
   logSet,
   startWorkoutSession,
@@ -306,5 +307,53 @@ describe('getWorkoutSummary', () => {
     expect(selectCount).toHaveBeenCalledWith('id', { count: 'exact', head: true });
     expect(eqCount).toHaveBeenCalledWith('workout_session_id', 'session-1');
     expect(result).toEqual({ programDayName: 'Push day', setCount: 5 });
+  });
+});
+
+describe('getWorkoutHistory', () => {
+  it('queries done/skipped sessions for the user, newest first, mapped', async () => {
+    const orderCreated = jest.fn().mockResolvedValue({
+      data: [
+        {
+          id: 'session-1',
+          scheduled_date: '2026-09-01',
+          status: 'done',
+          program_days: { name: 'Push day' },
+        },
+      ],
+      error: null,
+    });
+    const orderDate = jest.fn().mockReturnValue({ order: orderCreated });
+    const inStatus = jest.fn().mockReturnValue({ order: orderDate });
+    const eqUser = jest.fn().mockReturnValue({ in: inStatus });
+    const select = jest.fn().mockReturnValue({ eq: eqUser });
+    mockedFrom.mockReturnValue({ select } as never);
+
+    const result = await getWorkoutHistory('user-1');
+
+    expect(mockedFrom).toHaveBeenCalledWith('workout_sessions');
+    expect(eqUser).toHaveBeenCalledWith('user_id', 'user-1');
+    expect(inStatus).toHaveBeenCalledWith('status', ['done', 'skipped']);
+    expect(orderDate).toHaveBeenCalledWith('scheduled_date', { ascending: false });
+    expect(orderCreated).toHaveBeenCalledWith('created_at', { ascending: false });
+    expect(result).toEqual([
+      { id: 'session-1', programDayName: 'Push day', scheduledDate: '2026-09-01', status: 'done' },
+    ]);
+  });
+
+  it('falls back to an empty name for a session whose program day was deleted', async () => {
+    const orderCreated = jest.fn().mockResolvedValue({
+      data: [
+        { id: 'session-1', scheduled_date: '2026-09-01', status: 'skipped', program_days: null },
+      ],
+      error: null,
+    });
+    mockedFrom.mockReturnValue({
+      select: () => ({ eq: () => ({ in: () => ({ order: () => ({ order: orderCreated }) }) }) }),
+    } as never);
+
+    const result = await getWorkoutHistory('user-1');
+
+    expect(result[0].programDayName).toBe('');
   });
 });

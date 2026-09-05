@@ -42,3 +42,10 @@ export type WorkoutSummary = {
   programDayName: string;
   setCount: number;
 };
+
+export type WorkoutHistoryEntry = {
+  id: string;
+  programDayName: string;
+  scheduledDate: string;
+  status: WorkoutSessionStatus;
+};

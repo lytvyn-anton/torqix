@@ -4,6 +4,7 @@ import type {
   ProgramDayExerciseDetail,
   ProgramDaySummary,
   SetLog,
+  WorkoutHistoryEntry,
   WorkoutSession,
   WorkoutSummary,
 } from '../types';
@@ -180,4 +181,22 @@ export async function getWorkoutSummary(sessionId: string): Promise<WorkoutSumma
     programDayName: programDayName(session as never),
     setCount: count ?? 0,
   };
+}
+
+// Finished or abandoned sessions, most recent first — the History tab's list.
+export async function getWorkoutHistory(userId: string): Promise<WorkoutHistoryEntry[]> {
+  const { data, error } = await supabase
+    .from('workout_sessions')
+    .select('id, scheduled_date, status, program_days(name)')
+    .eq('user_id', userId)
+    .in('status', ['done', 'skipped'])
+    .order('scheduled_date', { ascending: false })
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data.map((row) => ({
+    id: row.id,
+    programDayName: programDayName(row as never),
+    scheduledDate: row.scheduled_date,
+    status: row.status,
+  }));
 }
