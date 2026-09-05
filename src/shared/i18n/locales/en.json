@@ -147,7 +147,11 @@
   },
   "history": {
     "title": "History",
-    "comingSoon": "Workout history is coming soon."
+    "loadError": "Couldn't load your workout history.",
+    "emptyTitle": "No workouts yet",
+    "emptyBody": "Finish a workout to see it here.",
+    "statusDone": "Done",
+    "statusSkipped": "Skipped"
   },
   "coach": {
     "title": "Coach",
