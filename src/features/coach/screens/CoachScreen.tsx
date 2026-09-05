@@ -38,7 +38,9 @@ function buildStyles(colors: ThemeColors) {
       flex: 1,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: colors.background,
+      // Transparent, not colors.background — the ambient Background sits behind the whole
+      // tab navigator (app/(app)/(tabs)/_layout.tsx) and shows through here.
+      backgroundColor: 'transparent',
       padding: spacing.xl,
       gap: spacing.sm,
     },
@@ -84,7 +86,9 @@ function buildStyles(colors: ThemeColors) {
       borderColor: colors.border,
       borderRadius: radii.xl,
       padding: spacing.md,
-      backgroundColor: colors.surface,
+      // Translucent, matching the glass card treatment (see ProgramsScreen's ProgramCard) —
+      // the already-blurred ambient Background shows softly through instead of a flat fill.
+      backgroundColor: colors.surfaceTranslucent,
     },
     composerPlaceholder: {
       fontSize: 14,

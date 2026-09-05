@@ -28,7 +28,10 @@ function buildStyles(colors: ThemeColors) {
       flex: 1,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: colors.background,
+      // Transparent, not colors.background — used for the History tab, where the ambient
+      // Background sits behind the whole tab navigator (app/(app)/(tabs)/_layout.tsx) and
+      // shows through here.
+      backgroundColor: 'transparent',
       padding: spacing.xl,
     },
     message: {

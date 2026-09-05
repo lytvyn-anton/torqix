@@ -29,7 +29,7 @@ export function ProgramsScreen({ userId }: Props) {
   const tabBarClearance = useFloatingTabBarClearance();
   const { colors } = useTheme();
   const formStyles = useFormStyles();
-  const styles = useMemo(() => buildStyles(colors), [colors]);
+  const styles = useMemo(() => buildScreenStyles(colors), [colors]);
 
   if (programsQuery.isLoading) {
     return (
@@ -100,7 +100,7 @@ function ProgramCard({
   archivedLabel: string;
 }) {
   const { colors } = useTheme();
-  const styles = useMemo(() => buildStyles(colors), [colors]);
+  const styles = useMemo(() => buildCardStyles(colors), [colors]);
 
   return (
     <View style={styles.card} testID={`program-card-${program.id}`}>
@@ -121,13 +121,15 @@ function ProgramCard({
   );
 }
 
-function buildStyles(colors: ThemeColors) {
+function buildScreenStyles(colors: ThemeColors) {
   return StyleSheet.create({
     centered: {
       flex: 1,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: colors.background,
+      // Transparent, not colors.background — the ambient Background sits behind the whole
+      // tab navigator (app/(app)/(tabs)/_layout.tsx) and shows through here.
+      backgroundColor: 'transparent',
       padding: spacing.xl,
       gap: spacing.md,
     },
@@ -161,14 +163,24 @@ function buildStyles(colors: ThemeColors) {
     },
     list: {
       flex: 1,
-      backgroundColor: colors.background,
+      backgroundColor: 'transparent',
     },
     listContent: {
       padding: spacing.lg,
       gap: spacing.md,
     },
+  });
+}
+
+// Separate from buildScreenStyles: ProgramCard is one FlatList row among potentially many, so
+// it only builds the handful of style keys it actually uses instead of the whole screen's.
+function buildCardStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    // Translucent instead of a solid surface fill — the ambient Background (already blurred
+    // as a whole) shows softly through, giving the "glass card" look from the design canvas
+    // without needing a second per-card BlurView.
     card: {
-      backgroundColor: colors.surface,
+      backgroundColor: colors.surfaceTranslucent,
       borderRadius: radii.lg,
       borderWidth: 1,
       borderColor: colors.border,
