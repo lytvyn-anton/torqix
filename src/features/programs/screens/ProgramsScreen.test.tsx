@@ -1,4 +1,5 @@
-import { render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen } from '@testing-library/react-native';
+import { useRouter } from 'expo-router';
 import { BottomTabBarHeightContext } from 'expo-router/js-tabs';
 import type { ReactElement } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -8,8 +9,10 @@ import { usePrograms } from '../hooks/usePrograms';
 import { ProgramsScreen } from './ProgramsScreen';
 
 jest.mock('../hooks/usePrograms', () => ({ usePrograms: jest.fn() }));
+jest.mock('expo-router', () => ({ useRouter: jest.fn() }));
 
 const mockedUsePrograms = jest.mocked(usePrograms);
+const mockedUseRouter = jest.mocked(useRouter);
 
 // ProgramsScreen reads useFloatingTabBarClearance(), which needs both a real Bottom Tab
 // Navigator (for useBottomTabBarHeight()) and a SafeAreaProvider (for useSafeAreaInsets())
@@ -73,10 +76,26 @@ describe('ProgramsScreen', () => {
       isError: false,
       data: [],
     } as unknown as ReturnType<typeof usePrograms>);
+    mockedUseRouter.mockReturnValue({ push: jest.fn() } as unknown as ReturnType<typeof useRouter>);
 
     await renderWithTabBar(<ProgramsScreen userId="user-1" />);
 
     expect(screen.getByTestId('programs-empty')).toBeTruthy();
+  });
+
+  it('navigates to program creation from the empty state CTA', async () => {
+    const push = jest.fn();
+    mockedUsePrograms.mockReturnValue({
+      isLoading: false,
+      isError: false,
+      data: [],
+    } as unknown as ReturnType<typeof usePrograms>);
+    mockedUseRouter.mockReturnValue({ push } as unknown as ReturnType<typeof useRouter>);
+
+    await renderWithTabBar(<ProgramsScreen userId="user-1" />);
+    fireEvent.press(screen.getByTestId('programs-empty-cta'));
+
+    expect(push).toHaveBeenCalledWith('/program-create');
   });
 
   it('renders a card per program, with a badge for archived ones', async () => {

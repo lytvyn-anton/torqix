@@ -72,8 +72,8 @@
   "today": {
     "title": "Today",
     "emptyTitle": "No active program",
-    "emptyBody": "Pick a program to see today's workout here",
-    "emptyCta": "Choose a Program",
+    "emptyBody": "Create your first program to see today's workout here",
+    "emptyCta": "Create Your First Program",
     "activeProgramLabel": "Active program",
     "loadError": "Couldn't load your program."
   },
@@ -82,6 +82,7 @@
     "loadError": "Couldn't load your programs.",
     "emptyTitle": "No programs yet",
     "emptyBody": "Create your first program to get started.",
+    "emptyCta": "Create Your First Program",
     "statusArchived": "Archived",
     "newProgram": "New",
     "createTitle": "New program",

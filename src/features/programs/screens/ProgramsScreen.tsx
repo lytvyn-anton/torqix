@@ -1,9 +1,19 @@
+import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  FlatList,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 
 import { usePrograms } from '../hooks/usePrograms';
 import type { Program } from '../types';
+import { ProgramsIcon } from '../../../shared/components/icons/TabIcons';
 import { useFloatingTabBarClearance } from '../../../shared/hooks/useFloatingTabBarClearance';
+import { formStyles } from '../../../shared/theme/formStyles';
 import { colors, fonts, radii, spacing } from '../../../shared/theme/theme';
 
 type Props = {
@@ -12,6 +22,7 @@ type Props = {
 
 export function ProgramsScreen({ userId }: Props) {
   const { t, i18n } = useTranslation();
+  const router = useRouter();
   const programsQuery = usePrograms(userId);
   const tabBarClearance = useFloatingTabBarClearance();
 
@@ -39,8 +50,19 @@ export function ProgramsScreen({ userId }: Props) {
   if (programs.length === 0) {
     return (
       <View style={styles.centered} testID="programs-empty">
+        <View style={styles.emptyIcon}>
+          <ProgramsIcon color={colors.accentDark} size={24} />
+        </View>
         <Text style={styles.emptyTitle}>{t('programs.emptyTitle')}</Text>
         <Text style={styles.emptyBody}>{t('programs.emptyBody')}</Text>
+        <TouchableOpacity
+          style={styles.emptyCta}
+          onPress={() => router.push('/program-create')}
+          testID="programs-empty-cta"
+          accessibilityRole="button"
+        >
+          <Text style={formStyles.primaryButtonText}>{t('programs.emptyCta')}</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -103,6 +125,15 @@ const styles = StyleSheet.create({
   error: {
     color: colors.error,
   },
+  emptyIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: colors.accentTint,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.sm,
+  },
   emptyTitle: {
     fontFamily: fonts.headingBold,
     fontWeight: fonts.headingBoldWeight,
@@ -113,6 +144,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.textMuted,
     textAlign: 'center',
+  },
+  emptyCta: {
+    ...formStyles.primaryButton,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.xl,
+    marginTop: spacing.sm,
   },
   list: {
     flex: 1,
