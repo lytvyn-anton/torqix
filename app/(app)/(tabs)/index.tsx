@@ -8,5 +8,7 @@ export default function TodayRoute() {
   const router = useRouter();
   if (!session) return null;
 
-  return <TodayScreen userId={session.user.id} onChooseProgram={() => router.push('/programs')} />;
+  return (
+    <TodayScreen userId={session.user.id} onCreateProgram={() => router.push('/program-create')} />
+  );
 }

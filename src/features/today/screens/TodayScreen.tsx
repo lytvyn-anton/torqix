@@ -8,10 +8,10 @@ import { colors, fonts, spacing } from '../../../shared/theme/theme';
 
 type Props = {
   userId: string;
-  onChooseProgram: () => void;
+  onCreateProgram: () => void;
 };
 
-export function TodayScreen({ userId, onChooseProgram }: Props) {
+export function TodayScreen({ userId, onCreateProgram }: Props) {
   const { t } = useTranslation();
   const activeProgramQuery = useActiveProgram(userId);
 
@@ -46,8 +46,8 @@ export function TodayScreen({ userId, onChooseProgram }: Props) {
         <Text style={styles.emptyBody}>{t('today.emptyBody')}</Text>
         <TouchableOpacity
           style={styles.emptyCta}
-          onPress={onChooseProgram}
-          testID="today-choose-program"
+          onPress={onCreateProgram}
+          testID="today-create-program"
           accessibilityRole="button"
         >
           <Text style={formStyles.primaryButtonText}>{t('today.emptyCta')}</Text>

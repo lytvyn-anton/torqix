@@ -16,7 +16,7 @@ describe('TodayScreen', () => {
       data: undefined,
     } as unknown as ReturnType<typeof useActiveProgram>);
 
-    await render(<TodayScreen userId="user-1" onChooseProgram={jest.fn()} />);
+    await render(<TodayScreen userId="user-1" onCreateProgram={jest.fn()} />);
 
     expect(screen.getByTestId('today-loading')).toBeTruthy();
   });
@@ -28,24 +28,24 @@ describe('TodayScreen', () => {
       data: undefined,
     } as unknown as ReturnType<typeof useActiveProgram>);
 
-    await render(<TodayScreen userId="user-1" onChooseProgram={jest.fn()} />);
+    await render(<TodayScreen userId="user-1" onCreateProgram={jest.fn()} />);
 
     expect(screen.getByTestId('today-load-error')).toBeTruthy();
   });
 
-  it('shows the empty state and calls onChooseProgram when there is no active program', async () => {
+  it('shows the empty state and calls onCreateProgram when there is no active program', async () => {
     mockedUseActiveProgram.mockReturnValue({
       isLoading: false,
       isError: false,
       data: null,
     } as unknown as ReturnType<typeof useActiveProgram>);
-    const onChooseProgram = jest.fn();
+    const onCreateProgram = jest.fn();
 
-    await render(<TodayScreen userId="user-1" onChooseProgram={onChooseProgram} />);
+    await render(<TodayScreen userId="user-1" onCreateProgram={onCreateProgram} />);
 
     expect(screen.getByTestId('today-empty')).toBeTruthy();
-    fireEvent.press(screen.getByTestId('today-choose-program'));
-    expect(onChooseProgram).toHaveBeenCalledTimes(1);
+    fireEvent.press(screen.getByTestId('today-create-program'));
+    expect(onCreateProgram).toHaveBeenCalledTimes(1);
   });
 
   it('keeps showing an already-loaded active program through a background refetch error', async () => {
@@ -55,7 +55,7 @@ describe('TodayScreen', () => {
       data: { id: 'program-1', name: 'Push / Pull / Legs' },
     } as unknown as ReturnType<typeof useActiveProgram>);
 
-    await render(<TodayScreen userId="user-1" onChooseProgram={jest.fn()} />);
+    await render(<TodayScreen userId="user-1" onCreateProgram={jest.fn()} />);
 
     expect(screen.queryByTestId('today-load-error')).toBeNull();
     expect(screen.getByTestId('today-active-program')).toBeTruthy();
@@ -68,7 +68,7 @@ describe('TodayScreen', () => {
       data: { id: 'program-1', name: 'Push / Pull / Legs' },
     } as unknown as ReturnType<typeof useActiveProgram>);
 
-    await render(<TodayScreen userId="user-1" onChooseProgram={jest.fn()} />);
+    await render(<TodayScreen userId="user-1" onCreateProgram={jest.fn()} />);
 
     expect(screen.getByTestId('today-active-program')).toBeTruthy();
     expect(screen.getByText('Push / Pull / Legs')).toBeTruthy();
