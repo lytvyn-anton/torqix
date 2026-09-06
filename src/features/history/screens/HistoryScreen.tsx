@@ -8,6 +8,7 @@ import { HistoryIcon } from '../../../shared/components/icons/TabIcons';
 import { useFloatingTabBarClearance } from '../../../shared/hooks/useFloatingTabBarClearance';
 import { useTheme } from '../../../shared/theme/ThemeProvider';
 import { fonts, radii, spacing, type ThemeColors } from '../../../shared/theme/theme';
+import { formatUtcDate } from '../../../shared/utils/formatUtcDate';
 
 type Props = {
   userId: string;
@@ -96,11 +97,9 @@ function SessionCard({
           </Text>
         </View>
       </View>
-      {/* timeZone: 'UTC' — scheduled_date is a plain calendar date with no time component,
-          so formatting it in the device's local zone could shift it a day either way. */}
-      <Text style={styles.cardDate}>
-        {new Date(entry.scheduledDate).toLocaleDateString(locale, { timeZone: 'UTC' })}
-      </Text>
+      {/* scheduled_date is a plain calendar date with no time component — UTC keeps it from
+          shifting a day either way in the device's local zone. */}
+      <Text style={styles.cardDate}>{formatUtcDate(entry.scheduledDate, locale)}</Text>
     </View>
   );
 }

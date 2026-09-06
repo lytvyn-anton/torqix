@@ -16,6 +16,7 @@ import { TrendingUpIcon } from '../../../shared/components/icons/TabIcons';
 import { useFloatingTabBarClearance } from '../../../shared/hooks/useFloatingTabBarClearance';
 import { useTheme } from '../../../shared/theme/ThemeProvider';
 import { fonts, radii, spacing, type ThemeColors } from '../../../shared/theme/theme';
+import { formatUtcDate } from '../../../shared/utils/formatUtcDate';
 
 type Props = {
   userId: string;
@@ -104,11 +105,9 @@ function ExerciseRow({
       <Text style={styles.name}>{exercise.exerciseName}</Text>
       <Text style={styles.meta}>
         {t('progressTab.lastPerformed', {
-          // timeZone: 'UTC' — scheduled_date is a plain calendar date with no time component,
-          // so formatting it in the device's local zone could shift it a day either way.
-          date: new Date(exercise.lastScheduledDate).toLocaleDateString(locale, {
-            timeZone: 'UTC',
-          }),
+          // scheduled_date is a plain calendar date with no time component — UTC keeps it
+          // from shifting a day either way in the device's local zone.
+          date: formatUtcDate(exercise.lastScheduledDate, locale),
           count: exercise.lastSessionSetCount,
         })}
       </Text>
