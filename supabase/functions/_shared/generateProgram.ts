@@ -96,6 +96,73 @@ export function buildGenerateProgramResponseSchema(
   } as const;
 }
 
+// Mirrors the profile fields the Edge Function reads from `profiles` (snake_case columns
+// already converted to camelCase by the caller). These are stored as "starting hints, not
+// hard constraints" (see the profiles migration), but a program can't be generated without
+// them — nullable here only because a profile row can legitimately have them unset.
+export type ProfileProgramFields = {
+  goal: string | null;
+  level: string | null;
+  trainingLocation: string | null;
+  equipment: string[];
+  splitPreference: string | null;
+  availableDaysPerWeek: number | null;
+  sessionMinutes: number | null;
+};
+
+const REQUIRED_PROFILE_FIELDS = [
+  'goal',
+  'level',
+  'trainingLocation',
+  'splitPreference',
+  'availableDaysPerWeek',
+  'sessionMinutes',
+] as const satisfies readonly (keyof ProfileProgramFields)[];
+
+// Lets the Edge Function surface one clear "complete your profile" error instead of either
+// crashing on a null field mid-prompt or silently generating a program from defaults.
+export function getMissingProfileFields(profile: ProfileProgramFields): string[] {
+  return REQUIRED_PROFILE_FIELDS.filter((field) => profile[field] === null);
+}
+
+// Throws if the profile is incomplete — callers should check `getMissingProfileFields` first
+// to return a 400 with the specific missing fields rather than a generic error.
+export function toGenerateProgramRequest(profile: ProfileProgramFields): GenerateProgramRequest {
+  if (getMissingProfileFields(profile).length > 0) {
+    throw new Error('Cannot build a program request from an incomplete profile');
+  }
+  return {
+    goal: profile.goal as string,
+    level: profile.level as string,
+    trainingLocation: profile.trainingLocation as string,
+    equipment: profile.equipment,
+    splitPreference: profile.splitPreference as string,
+    availableDaysPerWeek: profile.availableDaysPerWeek as number,
+    sessionMinutes: profile.sessionMinutes as number,
+  };
+}
+
+// Shape of the relevant part of Gemini's generateContent REST response — just enough to
+// pull out the generated JSON text, not a full response type.
+export type GeminiGenerateContentResponse = {
+  candidates?: { content?: { parts?: { text?: string }[] } }[];
+};
+
+// generateContent can fail to return the expected shape (empty candidates, a text-less
+// part, or — despite the responseSchema constraint — non-JSON text) independently of an
+// HTTP-level error, so this is checked and reported separately from the fetch call itself.
+export function parseGeneratedProgram(response: GeminiGenerateContentResponse): GeneratedProgram {
+  const text = response.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (typeof text !== 'string' || text.length === 0) {
+    throw new Error('Gemini response did not include generated text');
+  }
+  try {
+    return JSON.parse(text) as GeneratedProgram;
+  } catch (error) {
+    throw new Error(`Gemini response was not valid JSON: ${(error as Error).message}`);
+  }
+}
+
 function formatCatalog(catalog: GenerateProgramCatalogExercise[]): string {
   return catalog
     .map((exercise) => {
