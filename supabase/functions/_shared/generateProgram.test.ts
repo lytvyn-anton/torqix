@@ -1,8 +1,12 @@
 import {
   buildGenerateProgramPrompt,
   buildGenerateProgramResponseSchema,
+  getMissingProfileFields,
+  parseGeneratedProgram,
+  toGenerateProgramRequest,
   type GenerateProgramCatalogExercise,
   type GenerateProgramRequest,
+  type ProfileProgramFields,
 } from './generateProgram';
 
 const catalog: GenerateProgramCatalogExercise[] = [
@@ -87,5 +91,69 @@ describe('buildGenerateProgramPrompt', () => {
   it('instructs the model not to suggest a target weight', () => {
     const prompt = buildGenerateProgramPrompt(request, catalog);
     expect(prompt).toMatch(/do not suggest a target weight/i);
+  });
+});
+
+const completeProfile: ProfileProgramFields = {
+  goal: 'build_muscle',
+  level: 'intermediate',
+  trainingLocation: 'gym',
+  equipment: ['barbell', 'dumbbells'],
+  splitPreference: 'split',
+  availableDaysPerWeek: 4,
+  sessionMinutes: 60,
+};
+
+describe('getMissingProfileFields', () => {
+  it('returns an empty list for a complete profile', () => {
+    expect(getMissingProfileFields(completeProfile)).toEqual([]);
+  });
+
+  it('lists every null required field', () => {
+    const profile: ProfileProgramFields = {
+      ...completeProfile,
+      goal: null,
+      availableDaysPerWeek: null,
+    };
+    expect(getMissingProfileFields(profile)).toEqual(['goal', 'availableDaysPerWeek']);
+  });
+
+  it('does not flag equipment as missing when empty (home_bodyweight has none)', () => {
+    expect(getMissingProfileFields({ ...completeProfile, equipment: [] })).toEqual([]);
+  });
+});
+
+describe('toGenerateProgramRequest', () => {
+  it('maps a complete profile onto a GenerateProgramRequest', () => {
+    expect(toGenerateProgramRequest(completeProfile)).toEqual(request);
+  });
+
+  it('throws when a required field is missing', () => {
+    expect(() => toGenerateProgramRequest({ ...completeProfile, level: null })).toThrow(
+      /incomplete profile/,
+    );
+  });
+});
+
+describe('parseGeneratedProgram', () => {
+  const generatedProgram = {
+    name: 'AI Program',
+    days: [{ name: 'Push day', exercises: [] }],
+  };
+
+  it('parses the JSON text out of the first candidate', () => {
+    const response = {
+      candidates: [{ content: { parts: [{ text: JSON.stringify(generatedProgram) }] } }],
+    };
+    expect(parseGeneratedProgram(response)).toEqual(generatedProgram);
+  });
+
+  it('throws when there are no candidates', () => {
+    expect(() => parseGeneratedProgram({ candidates: [] })).toThrow(/did not include/);
+  });
+
+  it('throws when the candidate text is not valid JSON', () => {
+    const response = { candidates: [{ content: { parts: [{ text: 'not json' }] } }] };
+    expect(() => parseGeneratedProgram(response)).toThrow(/not valid JSON/);
   });
 });
