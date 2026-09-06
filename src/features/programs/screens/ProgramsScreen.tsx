@@ -17,6 +17,7 @@ import { useFloatingTabBarClearance } from '../../../shared/hooks/useFloatingTab
 import { useFormStyles } from '../../../shared/theme/formStyles';
 import { useTheme } from '../../../shared/theme/ThemeProvider';
 import { fonts, radii, spacing, type ThemeColors } from '../../../shared/theme/theme';
+import { formatUtcDate } from '../../../shared/utils/formatUtcDate';
 
 type Props = {
   userId: string;
@@ -120,11 +121,9 @@ function ProgramCard({
           </View>
         )}
       </View>
-      {/* timeZone: 'UTC' keeps the displayed calendar date matching created_at's UTC date,
-          instead of shifting a day for users west of UTC near a midnight boundary. */}
-      <Text style={styles.cardDate}>
-        {new Date(program.createdAt).toLocaleDateString(locale, { timeZone: 'UTC' })}
-      </Text>
+      {/* UTC keeps the displayed calendar date matching created_at's UTC date, instead of
+          shifting a day for users west of UTC near a midnight boundary. */}
+      <Text style={styles.cardDate}>{formatUtcDate(program.createdAt, locale)}</Text>
     </TouchableOpacity>
   );
 }
