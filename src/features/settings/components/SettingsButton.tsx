@@ -6,8 +6,8 @@ import { SettingsIcon } from '../../../shared/components/icons/SettingsIcon';
 import { useTheme } from '../../../shared/theme/ThemeProvider';
 import { spacing } from '../../../shared/theme/theme';
 
-// Header-right button on the Profile screen — Settings' own entry point, separate from
-// the profile form fields below it (previously a text link at the top of that scroll view).
+// Header-right button on every tab screen and on the Profile screen — opens Settings
+// directly, without requiring a detour through Profile first.
 export function SettingsButton() {
   const { t } = useTranslation();
   const router = useRouter();
