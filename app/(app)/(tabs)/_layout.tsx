@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { NewProgramButton } from '../../../src/features/programs/components/NewProgramButton';
 import { ProfileAvatarButton } from '../../../src/features/profile/components/ProfileAvatarButton';
+import { SettingsButton } from '../../../src/features/settings/components/SettingsButton';
 import { Background } from '../../../src/shared/components/Background';
 import {
   CoachIcon,
@@ -57,6 +58,7 @@ const TABS: {
       <View style={staticStyles.headerRight}>
         <NewProgramButton />
         <ProfileAvatarButton />
+        <SettingsButton />
       </View>
     ),
   },
@@ -130,7 +132,12 @@ export default function TabsLayout() {
       <Background />
       <Tabs
         screenOptions={{
-          headerRight: () => <ProfileAvatarButton />,
+          headerRight: () => (
+            <View style={staticStyles.headerRight}>
+              <ProfileAvatarButton />
+              <SettingsButton />
+            </View>
+          ),
           // Transparent (not colors.background) so the ambient Background behind this whole
           // stack shows through the header area too, matching the design canvas — the
           // "Today"/"Programs"/etc. title floats directly on the background there rather than
