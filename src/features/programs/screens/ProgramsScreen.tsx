@@ -63,11 +63,18 @@ export function ProgramsScreen({ userId }: Props) {
         <Text style={styles.emptyBody}>{t('programs.emptyBody')}</Text>
         <TouchableOpacity
           style={[formStyles.primaryButton, styles.emptyCta]}
+          onPress={() => router.push('/program-generate')}
+          testID="programs-empty-generate-cta"
+          accessibilityRole="button"
+        >
+          <Text style={formStyles.primaryButtonText}>{t('programs.generateSubmit')}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
           onPress={() => router.push('/program-create')}
           testID="programs-empty-cta"
           accessibilityRole="button"
         >
-          <Text style={formStyles.primaryButtonText}>{t('programs.emptyCta')}</Text>
+          <Text style={styles.emptyManualLink}>{t('programs.emptyCta')}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -166,6 +173,12 @@ function buildScreenStyles(colors: ThemeColors) {
     emptyCta: {
       paddingVertical: spacing.md,
       paddingHorizontal: spacing.xl,
+      marginTop: spacing.sm,
+    },
+    emptyManualLink: {
+      color: colors.accentDark,
+      fontWeight: '600',
+      fontSize: 13,
       marginTop: spacing.sm,
     },
     list: {

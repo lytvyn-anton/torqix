@@ -1,7 +1,11 @@
+import { FunctionsHttpError } from '@supabase/supabase-js';
+
 import { supabase } from '../../../shared/api/supabase';
 import {
+  IncompleteProfileError,
   createProgram,
   deleteProgram,
+  generateProgram,
   getActiveProgram,
   getProgram,
   getPrograms,
@@ -11,10 +15,14 @@ import {
 jest.mock('../../../shared/api/supabase', () => ({
   supabase: {
     from: jest.fn(),
+    functions: {
+      invoke: jest.fn(),
+    },
   },
 }));
 
 const mockedFrom = jest.mocked(supabase.from);
+const mockedInvoke = jest.mocked(supabase.functions.invoke);
 
 // Builds the same select().eq().eq().order().limit().maybeSingle() chain getActiveProgram
 // calls, resolving to `result`, and returns the individual spies so callers can assert on
@@ -834,5 +842,59 @@ describe('createProgram', () => {
     expect(deleteFn).toHaveBeenCalled();
     expect(deleteEq).toHaveBeenCalledWith('id', 'program-1');
     expect(insertDayExercises).not.toHaveBeenCalled();
+  });
+});
+
+// A FunctionsHttpError's `context` is the raw fetch Response the Edge Function returned —
+// only `.json()` is exercised here, so that's all this fake needs to provide.
+function functionsHttpError(body: unknown): FunctionsHttpError {
+  return new FunctionsHttpError({ json: () => Promise.resolve(body) } as unknown as Response);
+}
+
+describe('generateProgram', () => {
+  it('returns the saved program on success', async () => {
+    const program = {
+      id: 'program-1',
+      name: 'AI Program',
+      status: 'active',
+      createdAt: '2026-09-06',
+    };
+    mockedInvoke.mockResolvedValue({ data: { program }, error: null } as never);
+
+    await expect(generateProgram()).resolves.toEqual(program);
+    expect(mockedInvoke).toHaveBeenCalledWith('generate-program');
+  });
+
+  it('throws IncompleteProfileError with the missing fields when the profile is incomplete', async () => {
+    mockedInvoke.mockResolvedValue({
+      data: null,
+      error: functionsHttpError({
+        error: 'Complete your profile before generating a program',
+        missingFields: ['goal', 'availableDaysPerWeek'],
+      }),
+    } as never);
+
+    const error = await generateProgram().catch((e) => e);
+    expect(error).toBeInstanceOf(IncompleteProfileError);
+    expect((error as IncompleteProfileError).missingFields).toEqual([
+      'goal',
+      'availableDaysPerWeek',
+    ]);
+  });
+
+  it("throws the Edge Function's error message for a non-profile failure", async () => {
+    mockedInvoke.mockResolvedValue({
+      data: null,
+      error: functionsHttpError({ error: 'Failed to generate a program' }),
+    } as never);
+
+    await expect(generateProgram()).rejects.toThrow('Failed to generate a program');
+  });
+
+  it('rethrows a network-level error as-is', async () => {
+    const error = new Error('Failed to send a request to the Edge Function');
+    mockedInvoke.mockResolvedValue({ data: null, error } as never);
+
+    await expect(generateProgram()).rejects.toBe(error);
   });
 });

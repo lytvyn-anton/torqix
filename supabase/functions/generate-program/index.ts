@@ -1,21 +1,25 @@
 // Phase 4: calls Gemini to generate a workout program from the caller's profile and the
-// exercise catalog. Deliberately thin — prompt/schema construction and response parsing
-// live in ../_shared/generateProgram.ts so they can be unit-tested under Jest; this file is
-// just the Deno glue (auth, DB reads, the Gemini HTTP call).
-//
-// Scope note: this function returns Gemini's generated program as-is. Re-validating each
-// exerciseName against the catalog and resolving it to an exercise id, then persisting the
-// result, are the next two Phase 4 tasks — not done here.
-import { createClient } from 'jsr:@supabase/supabase-js@2';
+// exercise catalog, then resolves and persists it. Deliberately thin on the Gemini side —
+// prompt/schema construction and response parsing live in ../_shared/generateProgram.ts so
+// they can be unit-tested under Jest; this file is the Deno glue (auth, DB reads/writes,
+// the Gemini HTTP call). The DB-write path (saveGeneratedProgram below) can't be unit-tested
+// the same way (no Deno JSR imports under Jest) and duplicates createProgram's insert logic
+// (src/features/programs/api/programsApi.ts) — an accepted tradeoff for persisting
+// server-side with the caller's own RLS-scoped session rather than round-tripping the
+// generated program back to the client to save through the existing client-side path.
+import { createClient, type SupabaseClient } from 'jsr:@supabase/supabase-js@2';
 import {
+  REQUIRED_PROFILE_FIELD_NAMES,
   buildGenerateProgramPrompt,
   buildGenerateProgramResponseSchema,
   getMissingProfileFields,
   parseGeneratedProgram,
+  resolveGeneratedProgram,
   toGenerateProgramRequest,
   type GenerateProgramCatalogExercise,
   type GeminiGenerateContentResponse,
   type ProfileProgramFields,
+  type ResolvedProgram,
 } from '../_shared/generateProgram.ts';
 
 const GEMINI_MODEL = Deno.env.get('GEMINI_MODEL') ?? 'gemini-2.5-flash';
@@ -72,14 +76,25 @@ async function handleRequest(req: Request): Promise<Response> {
       supabase.from('exercises').select('id, name, muscle_group, equipment').order('name'),
     ]);
 
-  if (profileError || !profileRow) {
+  if (profileError && profileError.code !== 'PGRST116') {
+    // Anything other than "no rows" (connection blip, RLS misconfiguration, column rename)
+    // is a genuine server-side failure, not the caller's incomplete profile.
+    console.error('Failed to load profile', profileError);
+    return jsonResponse({ error: 'Failed to load profile' }, 500);
+  }
+  if (!profileRow) {
     // PGRST116 ("no rows") is the expected case for a user who hasn't filled in a profile
-    // yet; anything else (connection blip, RLS misconfiguration, column rename) is logged
-    // so it isn't misdiagnosed as the same thing from the client-facing 404 alone.
-    if (profileError && profileError.code !== 'PGRST116') {
-      console.error('Failed to load profile', profileError);
-    }
-    return jsonResponse({ error: 'Profile not found' }, 404);
+    // yet — nothing creates a `profiles` row automatically on signup. Reported the same way
+    // as an incomplete-but-present profile (400 + missingFields) rather than a 404, so the
+    // client's single "go complete your profile" path (see generateProgram in
+    // src/features/programs/api/programsApi.ts) covers this, most common, first-run case too.
+    return jsonResponse(
+      {
+        error: 'Complete your profile before generating a program',
+        missingFields: [...REQUIRED_PROFILE_FIELD_NAMES],
+      },
+      400,
+    );
   }
   if (exercisesError) {
     console.error('Failed to load exercise catalog', exercisesError);
@@ -117,13 +132,125 @@ async function handleRequest(req: Request): Promise<Response> {
   const prompt = buildGenerateProgramPrompt(generateRequest, catalog);
   const responseSchema = buildGenerateProgramResponseSchema(generateRequest, catalog);
 
+  let resolvedProgram: ResolvedProgram;
   try {
     const geminiResponse = await callGemini(geminiApiKey, prompt, responseSchema);
-    const program = parseGeneratedProgram(geminiResponse);
-    return jsonResponse({ program }, 200);
+    const generatedProgram = parseGeneratedProgram(geminiResponse);
+    resolvedProgram = resolveGeneratedProgram(generatedProgram, catalog);
   } catch (error) {
     console.error('Program generation failed', error);
     return jsonResponse({ error: 'Failed to generate a program' }, 502);
+  }
+
+  try {
+    const program = await saveGeneratedProgram(supabase, user.id, resolvedProgram);
+    return jsonResponse({ program }, 200);
+  } catch (error) {
+    console.error('Failed to save generated program', error);
+    return jsonResponse({ error: 'Failed to save the generated program' }, 500);
+  }
+}
+
+type SavedProgram = { id: string; name: string; status: string; createdAt: string };
+
+// Inserts the resolved program (workout_programs -> program_days -> program_day_exercises)
+// and archives the caller's other active programs, mirroring createProgram's behavior
+// (src/features/programs/api/programsApi.ts) so an AI-generated program becomes the user's
+// one active program the same way a manually created one does. Sequential writes, cleaned
+// up via deleteOrphanedProgram on failure, for the same reason createProgram is: no
+// client-side transaction API against Postgres from here either.
+async function saveGeneratedProgram(
+  supabase: SupabaseClient,
+  userId: string,
+  program: ResolvedProgram,
+): Promise<SavedProgram> {
+  // Belt-and-suspenders alongside getMissingProfileFields now rejecting
+  // availableDaysPerWeek <= 0 before Gemini is ever called — mirrors createProgram's own
+  // guard (src/features/programs/api/programsApi.ts) rather than letting an empty-days
+  // program reach an insert.
+  if (program.days.length === 0) {
+    throw new Error('saveGeneratedProgram requires at least one day');
+  }
+
+  const { data: savedProgram, error: programError } = await supabase
+    .from('workout_programs')
+    .insert({ user_id: userId, name: program.name })
+    .select('id, name, status, created_at')
+    .single();
+  if (programError) throw programError;
+
+  const { data: insertedDays, error: daysError } = await supabase
+    .from('program_days')
+    .insert(
+      program.days.map((day, index) => ({
+        program_id: savedProgram.id,
+        name: day.name,
+        order_index: index,
+      })),
+    )
+    .select('id, order_index');
+  if (daysError) {
+    await deleteOrphanedProgram(supabase, savedProgram.id);
+    throw daysError;
+  }
+  if (insertedDays.length !== program.days.length) {
+    await deleteOrphanedProgram(supabase, savedProgram.id);
+    throw new Error(
+      `saveGeneratedProgram: expected ${program.days.length} inserted days, got ${insertedDays.length}`,
+    );
+  }
+
+  const dayIdByOrderIndex = new Map(insertedDays.map((day) => [day.order_index, day.id]));
+
+  const exerciseRows = program.days.flatMap((day, dayIndex) =>
+    day.exercises.map((exercise, exerciseIndex) => ({
+      program_day_id: dayIdByOrderIndex.get(dayIndex),
+      exercise_id: exercise.exerciseId,
+      order_index: exerciseIndex,
+      sets: exercise.sets,
+      reps: exercise.reps,
+      rest_seconds: exercise.restSeconds,
+      note: exercise.note,
+    })),
+  );
+
+  if (exerciseRows.length > 0) {
+    const { error: exercisesError } = await supabase
+      .from('program_day_exercises')
+      .insert(exerciseRows);
+    if (exercisesError) {
+      await deleteOrphanedProgram(supabase, savedProgram.id);
+      throw exercisesError;
+    }
+  }
+
+  const { error: archiveError } = await supabase
+    .from('workout_programs')
+    .update({ status: 'archived' })
+    .eq('user_id', userId)
+    .eq('status', 'active')
+    .neq('id', savedProgram.id);
+  if (archiveError) {
+    await deleteOrphanedProgram(supabase, savedProgram.id);
+    throw archiveError;
+  }
+
+  return {
+    id: savedProgram.id,
+    name: savedProgram.name,
+    status: savedProgram.status,
+    createdAt: savedProgram.created_at,
+  };
+}
+
+// Deletes a program that failed partway through saving, cascading to any days/exercises
+// already inserted for it. Surfaces its own failure via console.error rather than throwing
+// — the caller is already mid-throw for the original error, and losing that in favor of a
+// cleanup-step error would hide the actual cause.
+async function deleteOrphanedProgram(supabase: SupabaseClient, programId: string): Promise<void> {
+  const { error } = await supabase.from('workout_programs').delete().eq('id', programId);
+  if (error) {
+    console.error(`Failed to clean up orphaned program ${programId}`, error);
   }
 }
 

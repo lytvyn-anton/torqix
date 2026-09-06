@@ -1,0 +1,103 @@
+import { useRouter } from 'expo-router';
+import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
+import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { useGenerateProgram } from '../hooks/useGenerateProgram';
+import { useFormStyles } from '../../../shared/theme/formStyles';
+import { useTheme } from '../../../shared/theme/ThemeProvider';
+import { spacing, type ThemeColors } from '../../../shared/theme/theme';
+
+type Props = {
+  userId: string;
+};
+
+// The profile screen already collects goal/level/equipment/days-per-week (Phase 1) and the
+// Edge Function reads them straight from `profiles` (see
+// supabase/functions/generate-program/index.ts), so this screen has nothing left to ask for
+// — it's a single "Generate" action plus the loading/error states around that one call.
+export function ProgramGenerateScreen({ userId }: Props) {
+  const { t } = useTranslation();
+  const router = useRouter();
+  const { colors } = useTheme();
+  const formStyles = useFormStyles();
+  const styles = useMemo(() => buildStyles(colors), [colors]);
+  const generateProgram = useGenerateProgram(userId);
+
+  // Checked by name rather than `instanceof IncompleteProfileError` so this screen doesn't
+  // need to import programsApi.ts (and, transitively, the real Supabase client module) just
+  // to narrow an error type — useGenerateProgram is already the screen's only touchpoint
+  // with the API layer.
+  const isIncompleteProfile = generateProgram.error?.name === 'IncompleteProfileError';
+
+  const handleGenerate = () => {
+    generateProgram.mutate(undefined, {
+      onSuccess: (program) => router.replace(`/program/${program.id}`),
+    });
+  };
+
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.container}>
+        <Text style={formStyles.screenTitle}>{t('programs.generateTitle')}</Text>
+        <Text style={styles.body}>{t('programs.generateBody')}</Text>
+
+        {generateProgram.isError && (
+          <Text style={formStyles.error} testID="program-generate-error">
+            {isIncompleteProfile
+              ? t('programs.generateIncompleteProfile')
+              : t('programs.generateError')}
+          </Text>
+        )}
+
+        {isIncompleteProfile ? (
+          <TouchableOpacity
+            style={formStyles.primaryButton}
+            onPress={() => router.push('/profile')}
+            testID="program-generate-go-to-profile"
+            accessibilityRole="button"
+          >
+            <Text style={formStyles.primaryButtonText}>{t('programs.generateGoToProfile')}</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={[formStyles.primaryButton, generateProgram.isPending && styles.buttonDisabled]}
+            onPress={handleGenerate}
+            disabled={generateProgram.isPending}
+            testID="program-generate-submit"
+            accessibilityRole="button"
+          >
+            {generateProgram.isPending ? (
+              <ActivityIndicator color={colors.onAccent} />
+            ) : (
+              <Text style={formStyles.primaryButtonText}>{t('programs.generateSubmit')}</Text>
+            )}
+          </TouchableOpacity>
+        )}
+      </View>
+    </SafeAreaView>
+  );
+}
+
+function buildStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    safeArea: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    container: {
+      flex: 1,
+      justifyContent: 'center',
+      padding: spacing.xl,
+      gap: spacing.md,
+    },
+    body: {
+      color: colors.textMuted,
+      fontSize: 14,
+    },
+    buttonDisabled: {
+      opacity: 0.5,
+    },
+  });
+}

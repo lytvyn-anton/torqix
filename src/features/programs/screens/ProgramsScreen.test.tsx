@@ -101,6 +101,21 @@ describe('ProgramsScreen', () => {
     expect(push).toHaveBeenCalledWith('/program-create');
   });
 
+  it('navigates to AI generation from the empty state CTA', async () => {
+    const push = jest.fn();
+    mockedUsePrograms.mockReturnValue({
+      isLoading: false,
+      isError: false,
+      data: [],
+    } as unknown as ReturnType<typeof usePrograms>);
+    mockedUseRouter.mockReturnValue({ push } as unknown as ReturnType<typeof useRouter>);
+
+    await renderWithTabBar(<ProgramsScreen userId="user-1" />);
+    fireEvent.press(screen.getByTestId('programs-empty-generate-cta'));
+
+    expect(push).toHaveBeenCalledWith('/program-generate');
+  });
+
   it('renders a card per program, with a badge for archived ones', async () => {
     mockedUsePrograms.mockReturnValue({
       isLoading: false,

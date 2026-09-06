@@ -119,10 +119,22 @@ const REQUIRED_PROFILE_FIELDS = [
   'sessionMinutes',
 ] as const satisfies readonly (keyof ProfileProgramFields)[];
 
+// Also exported so the Edge Function can report every required field as missing for a
+// caller with no `profiles` row at all, without hardcoding the list a second time.
+export const REQUIRED_PROFILE_FIELD_NAMES: readonly string[] = REQUIRED_PROFILE_FIELDS;
+
 // Lets the Edge Function surface one clear "complete your profile" error instead of either
 // crashing on a null field mid-prompt or silently generating a program from defaults.
+// availableDaysPerWeek gets an extra check beyond null: the profile form has no minimum-value
+// validation, and 0 would otherwise sail through to an unsatisfiable minItems:0/maxItems:0
+// response schema (see buildGenerateProgramResponseSchema) and then an empty-days program.
 export function getMissingProfileFields(profile: ProfileProgramFields): string[] {
-  return REQUIRED_PROFILE_FIELDS.filter((field) => profile[field] === null);
+  return REQUIRED_PROFILE_FIELDS.filter((field) => {
+    if (field === 'availableDaysPerWeek') {
+      return profile.availableDaysPerWeek === null || profile.availableDaysPerWeek <= 0;
+    }
+    return profile[field] === null;
+  });
 }
 
 // Throws if the profile is incomplete — callers should check `getMissingProfileFields` first
@@ -161,6 +173,83 @@ export function parseGeneratedProgram(response: GeminiGenerateContentResponse): 
   } catch (error) {
     throw new Error(`Gemini response was not valid JSON: ${(error as Error).message}`);
   }
+}
+
+// Mirrors ProgramDayExerciseInput/ProgramDayInput/CreateProgramInput (src/features/programs/types.ts)
+// with exerciseId resolved and no targetWeight (see GeneratedProgramExercise) — the shape the
+// Edge Function persists once every exerciseName below is confirmed to be in the catalog.
+export type ResolvedProgramExercise = {
+  exerciseId: string;
+  sets: number;
+  reps: number;
+  restSeconds: number | null;
+  note: string | null;
+};
+
+export type ResolvedProgramDay = {
+  name: string;
+  exercises: ResolvedProgramExercise[];
+};
+
+export type ResolvedProgram = {
+  name: string;
+  days: ResolvedProgramDay[];
+};
+
+// Re-checks every exerciseName Gemini returned against the same catalog sent in the prompt
+// and resolves it to that exercise's id. The responseSchema's enum constraint (see
+// buildGenerateProgramResponseSchema) is a strong bias, not a guarantee, so this still
+// throws — rather than silently dropping or guessing — if a name doesn't match exactly.
+export function resolveGeneratedProgram(
+  program: GeneratedProgram,
+  catalog: GenerateProgramCatalogExercise[],
+): ResolvedProgram {
+  const idByName = new Map<string, string>();
+  const ambiguousNames = new Set<string>();
+  for (const exercise of catalog) {
+    if (idByName.has(exercise.name)) {
+      ambiguousNames.add(exercise.name);
+    } else {
+      idByName.set(exercise.name, exercise.id);
+    }
+  }
+  // Two catalog rows sharing a name (e.g. a user's custom exercise named the same as a
+  // shared-catalog one) make the name Gemini was given genuinely ambiguous — resolving it
+  // to whichever id happened to win the Map would silently save the wrong exercise, so this
+  // is treated as a generation failure instead.
+  if (ambiguousNames.size > 0) {
+    throw new Error(
+      `Catalog has ambiguous duplicate exercise name(s): ${[...ambiguousNames].join(', ')}`,
+    );
+  }
+
+  const unknownNames = [
+    ...new Set(
+      program.days
+        .flatMap((day) => day.exercises)
+        .map((exercise) => exercise.exerciseName)
+        .filter((name) => !idByName.has(name)),
+    ),
+  ];
+  if (unknownNames.length > 0) {
+    throw new Error(
+      `Gemini referenced exercise name(s) not in the catalog: ${unknownNames.join(', ')}`,
+    );
+  }
+
+  return {
+    name: program.name,
+    days: program.days.map((day) => ({
+      name: day.name,
+      exercises: day.exercises.map((exercise) => ({
+        exerciseId: idByName.get(exercise.exerciseName) as string,
+        sets: exercise.sets,
+        reps: exercise.reps,
+        restSeconds: exercise.restSeconds,
+        note: exercise.note,
+      })),
+    })),
+  };
 }
 
 function formatCatalog(catalog: GenerateProgramCatalogExercise[]): string {

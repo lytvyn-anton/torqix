@@ -3,7 +3,9 @@ import {
   buildGenerateProgramResponseSchema,
   getMissingProfileFields,
   parseGeneratedProgram,
+  resolveGeneratedProgram,
   toGenerateProgramRequest,
+  type GeneratedProgram,
   type GenerateProgramCatalogExercise,
   type GenerateProgramRequest,
   type ProfileProgramFields,
@@ -121,6 +123,12 @@ describe('getMissingProfileFields', () => {
   it('does not flag equipment as missing when empty (home_bodyweight has none)', () => {
     expect(getMissingProfileFields({ ...completeProfile, equipment: [] })).toEqual([]);
   });
+
+  it('flags availableDaysPerWeek as missing when it is zero, not just null', () => {
+    expect(getMissingProfileFields({ ...completeProfile, availableDaysPerWeek: 0 })).toEqual([
+      'availableDaysPerWeek',
+    ]);
+  });
 });
 
 describe('toGenerateProgramRequest', () => {
@@ -155,5 +163,72 @@ describe('parseGeneratedProgram', () => {
   it('throws when the candidate text is not valid JSON', () => {
     const response = { candidates: [{ content: { parts: [{ text: 'not json' }] } }] };
     expect(() => parseGeneratedProgram(response)).toThrow(/not valid JSON/);
+  });
+});
+
+describe('resolveGeneratedProgram', () => {
+  it('resolves every exerciseName to its catalog id, dropping the name', () => {
+    const program: GeneratedProgram = {
+      name: 'AI Program',
+      days: [
+        {
+          name: 'Push day',
+          exercises: [
+            { exerciseName: 'Barbell Bench Press', sets: 4, reps: 8, restSeconds: 90, note: null },
+            { exerciseName: 'Pull-up', sets: 3, reps: 10, restSeconds: 60, note: 'to failure' },
+          ],
+        },
+      ],
+    };
+
+    expect(resolveGeneratedProgram(program, catalog)).toEqual({
+      name: 'AI Program',
+      days: [
+        {
+          name: 'Push day',
+          exercises: [
+            { exerciseId: '1', sets: 4, reps: 8, restSeconds: 90, note: null },
+            { exerciseId: '2', sets: 3, reps: 10, restSeconds: 60, note: 'to failure' },
+          ],
+        },
+      ],
+    });
+  });
+
+  it('throws listing every exercise name not found in the catalog', () => {
+    const program: GeneratedProgram = {
+      name: 'AI Program',
+      days: [
+        {
+          name: 'Push day',
+          exercises: [
+            { exerciseName: 'Barbell Bench Press', sets: 4, reps: 8, restSeconds: 90, note: null },
+            { exerciseName: 'Cable Fly', sets: 3, reps: 12, restSeconds: 60, note: null },
+          ],
+        },
+        {
+          name: 'Pull day',
+          exercises: [
+            { exerciseName: 'Cable Fly', sets: 3, reps: 12, restSeconds: 60, note: null },
+            { exerciseName: 'Leg Press', sets: 4, reps: 10, restSeconds: 90, note: null },
+          ],
+        },
+      ],
+    };
+
+    expect(() => resolveGeneratedProgram(program, catalog)).toThrow('Cable Fly, Leg Press');
+  });
+
+  it('throws when the catalog itself has two exercises sharing a name, instead of silently picking one', () => {
+    const ambiguousCatalog: GenerateProgramCatalogExercise[] = [
+      ...catalog,
+      { id: '3', name: 'Pull-up', muscleGroup: 'back', equipment: ['bodyweight'] },
+    ];
+    const program: GeneratedProgram = {
+      name: 'AI Program',
+      days: [{ name: 'Pull day', exercises: [] }],
+    };
+
+    expect(() => resolveGeneratedProgram(program, ambiguousCatalog)).toThrow(/ambiguous/i);
   });
 });
