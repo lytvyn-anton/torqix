@@ -14,6 +14,29 @@ jest.mock('@react-native-async-storage/async-storage', () =>
 // otherwise render no children at all. Default the metrics only when a test hasn't already
 // supplied its own (e.g. ProgramsScreen/CoachScreen/HistoryScreen tests, which pass specific
 // values to exercise their safe-area-dependent layout) — SafeAreaView is left real throughout.
+// react-native-gifted-charts (and its gifted-charts-core dependency) ships ESM-only builds
+// that Jest's default transformIgnorePatterns won't transform, and its actual SVG rendering
+// isn't something a unit test can meaningfully assert on anyway — so stand in a plain View
+// that renders the data/props passed to it, which is what the tests care about.
+jest.mock('react-native-gifted-charts', () => {
+  const React = require('react');
+  const { Text, View } = require('react-native');
+  return {
+    LineChart: ({ data }) =>
+      React.createElement(
+        View,
+        { testID: 'mock-line-chart' },
+        (data ?? []).map((point, index) =>
+          React.createElement(
+            Text,
+            { key: index, testID: `mock-line-chart-point-${index}` },
+            `${point.label}:${point.value}`,
+          ),
+        ),
+      ),
+  };
+});
+
 jest.mock('react-native-safe-area-context', () => {
   const React = require('react');
   const actual = jest.requireActual('react-native-safe-area-context');

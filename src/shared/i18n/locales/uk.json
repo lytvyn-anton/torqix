@@ -171,7 +171,11 @@
     "title": "Прогрес",
     "loadError": "Не вдалося завантажити прогрес по цій вправі.",
     "emptyBody": "Запишіть підхід під час тренування, щоб почати відстежувати прогрес тут.",
-    "setEntry": "Підхід {{index}}: {{weight}} кг × {{reps}}"
+    "setEntry": "Підхід {{index}}: {{weight}} кг × {{reps}}",
+    "chartTopSetTab": "Робочий підхід",
+    "chartVolumeTab": "Обсяг",
+    "chartValueKg": "{{value}} кг",
+    "chartInsufficientData": "Запишіть ще кілька тренувань, щоб побачити динаміку."
   },
   "progressTab": {
     "title": "Прогрес",

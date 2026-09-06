@@ -66,4 +66,34 @@ describe('ExerciseProgressScreen', () => {
     expect(screen.getByTestId('exercise-progress-row-log-2')).toBeTruthy();
     expect(screen.getByText('Set 2: 42.5 kg × 8')).toBeTruthy();
   });
+
+  it('does not render a chart when all logged sets fall on a single session', async () => {
+    mockedUseExerciseProgress.mockReturnValue({
+      isLoading: false,
+      isError: false,
+      data: [
+        { id: 'log-1', scheduledDate: '2026-09-01', setIndex: 0, repsDone: 10, weight: 40 },
+        { id: 'log-2', scheduledDate: '2026-09-01', setIndex: 1, repsDone: 8, weight: 42.5 },
+      ],
+    } as unknown as ReturnType<typeof useExerciseProgress>);
+
+    await render(<ExerciseProgressScreen exerciseId="ex-1" exerciseName="Back Squat" />);
+
+    expect(screen.queryByTestId('exercise-progress-chart')).toBeNull();
+  });
+
+  it('renders the progress chart once at least two sessions have been logged', async () => {
+    mockedUseExerciseProgress.mockReturnValue({
+      isLoading: false,
+      isError: false,
+      data: [
+        { id: 'log-1', scheduledDate: '2026-09-01', setIndex: 0, repsDone: 10, weight: 40 },
+        { id: 'log-2', scheduledDate: '2026-09-03', setIndex: 0, repsDone: 10, weight: 42.5 },
+      ],
+    } as unknown as ReturnType<typeof useExerciseProgress>);
+
+    await render(<ExerciseProgressScreen exerciseId="ex-1" exerciseName="Back Squat" />);
+
+    expect(screen.getByTestId('exercise-progress-chart')).toBeTruthy();
+  });
 });

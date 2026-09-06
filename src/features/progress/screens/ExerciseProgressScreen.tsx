@@ -4,9 +4,11 @@ import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-nativ
 
 import { useExerciseProgress } from '../../workouts/hooks/useExerciseProgress';
 import type { ExerciseProgressEntry } from '../../workouts/types';
+import { ExerciseProgressChart } from '../components/ExerciseProgressChart';
 import { useFormStyles } from '../../../shared/theme/formStyles';
 import { useTheme } from '../../../shared/theme/ThemeProvider';
 import { fonts, radii, spacing, type ThemeColors } from '../../../shared/theme/theme';
+import { formatUtcDate } from '../../../shared/utils/formatUtcDate';
 
 type Props = {
   exerciseId: string;
@@ -42,6 +44,8 @@ export function ExerciseProgressScreen({ exerciseId, exerciseName }: Props) {
     <View style={styles.container}>
       <Text style={styles.name}>{exerciseName}</Text>
 
+      {entries.length > 0 && <ExerciseProgressChart entries={entries} locale={i18n.language} />}
+
       {entries.length === 0 ? (
         <View style={styles.centered} testID="exercise-progress-empty">
           <Text style={styles.emptyBody}>{t('progress.emptyBody')}</Text>
@@ -66,11 +70,9 @@ function EntryRow({ entry, locale }: { entry: ExerciseProgressEntry; locale: str
 
   return (
     <View style={styles.row} testID={`exercise-progress-row-${entry.id}`}>
-      <Text style={styles.date}>
-        {/* timeZone: 'UTC' — scheduled_date is a plain calendar date with no time component,
-            so formatting it in the device's local zone could shift it a day either way. */}
-        {new Date(entry.scheduledDate).toLocaleDateString(locale, { timeZone: 'UTC' })}
-      </Text>
+      {/* scheduled_date is a plain calendar date with no time component — UTC keeps it from
+          shifting a day either way in the device's local zone. */}
+      <Text style={styles.date}>{formatUtcDate(entry.scheduledDate, locale)}</Text>
       <Text style={styles.detail}>
         {t('progress.setEntry', {
           index: entry.setIndex + 1,
