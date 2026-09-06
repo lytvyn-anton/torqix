@@ -3,6 +3,7 @@ import {
   cancelSession,
   completeSession,
   getExerciseProgress,
+  getLoggedExercises,
   getProgramDayExercises,
   getProgramDays,
   getSession,
@@ -404,5 +405,111 @@ describe('getExerciseProgress', () => {
     } as never);
 
     await expect(getExerciseProgress('ex-1')).rejects.toBe(error);
+  });
+});
+
+describe('getLoggedExercises', () => {
+  it('aggregates one summary per exercise, using its most recent session for the set count', async () => {
+    const orderDate = jest.fn().mockResolvedValue({
+      data: [
+        {
+          exercise_id: 'ex-1',
+          workout_session_id: 'session-2',
+          exercises: { name: 'Bench Press' },
+          workout_sessions: { scheduled_date: '2026-09-01', status: 'done', user_id: 'user-1' },
+        },
+        {
+          exercise_id: 'ex-1',
+          workout_session_id: 'session-2',
+          exercises: { name: 'Bench Press' },
+          workout_sessions: { scheduled_date: '2026-09-01', status: 'done', user_id: 'user-1' },
+        },
+        {
+          exercise_id: 'ex-2',
+          workout_session_id: 'session-3',
+          exercises: { name: 'Back Squat' },
+          workout_sessions: { scheduled_date: '2026-08-30', status: 'done', user_id: 'user-1' },
+        },
+        {
+          exercise_id: 'ex-1',
+          workout_session_id: 'session-1',
+          exercises: { name: 'Bench Press' },
+          workout_sessions: { scheduled_date: '2026-08-25', status: 'done', user_id: 'user-1' },
+        },
+      ],
+      error: null,
+    });
+    const eqStatus = jest.fn().mockReturnValue({ order: orderDate });
+    const eqUser = jest.fn().mockReturnValue({ eq: eqStatus });
+    const select = jest.fn().mockReturnValue({ eq: eqUser });
+    mockedFrom.mockReturnValue({ select } as never);
+
+    const result = await getLoggedExercises('user-1');
+
+    expect(mockedFrom).toHaveBeenCalledWith('set_logs');
+    expect(eqUser).toHaveBeenCalledWith('workout_sessions.user_id', 'user-1');
+    expect(eqStatus).toHaveBeenCalledWith('workout_sessions.status', 'done');
+    expect(orderDate).toHaveBeenCalledWith('scheduled_date', {
+      foreignTable: 'workout_sessions',
+      ascending: false,
+    });
+    expect(result).toEqual([
+      {
+        exerciseId: 'ex-1',
+        exerciseName: 'Bench Press',
+        lastScheduledDate: '2026-09-01',
+        lastSessionSetCount: 2,
+      },
+      {
+        exerciseId: 'ex-2',
+        exerciseName: 'Back Squat',
+        lastScheduledDate: '2026-08-30',
+        lastSessionSetCount: 1,
+      },
+    ]);
+  });
+
+  it('does not merge two distinct sessions that share the same scheduled date', async () => {
+    const orderDate = jest.fn().mockResolvedValue({
+      data: [
+        {
+          exercise_id: 'ex-1',
+          workout_session_id: 'session-1',
+          exercises: { name: 'Bench Press' },
+          workout_sessions: { scheduled_date: '2026-09-01', status: 'done', user_id: 'user-1' },
+        },
+        {
+          exercise_id: 'ex-1',
+          workout_session_id: 'session-2',
+          exercises: { name: 'Bench Press' },
+          workout_sessions: { scheduled_date: '2026-09-01', status: 'done', user_id: 'user-1' },
+        },
+      ],
+      error: null,
+    });
+    mockedFrom.mockReturnValue({
+      select: () => ({ eq: () => ({ eq: () => ({ order: orderDate }) }) }),
+    } as never);
+
+    const result = await getLoggedExercises('user-1');
+
+    expect(result).toEqual([
+      {
+        exerciseId: 'ex-1',
+        exerciseName: 'Bench Press',
+        lastScheduledDate: '2026-09-01',
+        lastSessionSetCount: 1,
+      },
+    ]);
+  });
+
+  it('throws the supabase error', async () => {
+    const error = new Error('rls denied');
+    const orderDate = jest.fn().mockResolvedValue({ data: null, error });
+    mockedFrom.mockReturnValue({
+      select: () => ({ eq: () => ({ eq: () => ({ order: orderDate }) }) }),
+    } as never);
+
+    await expect(getLoggedExercises('user-1')).rejects.toBe(error);
   });
 });

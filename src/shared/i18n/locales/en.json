@@ -173,6 +173,13 @@
     "emptyBody": "Log a set during a workout to start tracking progress here.",
     "setEntry": "Set {{index}}: {{weight}} kg × {{reps}}"
   },
+  "progressTab": {
+    "title": "Progress",
+    "loadError": "Couldn't load your progress.",
+    "emptyTitle": "No progress yet",
+    "emptyBody": "Log a few sets and exercises you've trained will show up here.",
+    "lastPerformed": "Last: {{date}} · {{count}} sets"
+  },
   "coach": {
     "title": "Coach",
     "comingSoonTitle": "Your AI coach is coming",

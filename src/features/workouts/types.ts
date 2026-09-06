@@ -57,3 +57,10 @@ export type ExerciseProgressEntry = {
   repsDone: number | null;
   weight: number | null;
 };
+
+export type ExerciseSummary = {
+  exerciseId: string;
+  exerciseName: string;
+  lastScheduledDate: string;
+  lastSessionSetCount: number;
+};
