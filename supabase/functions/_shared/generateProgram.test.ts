@@ -1,0 +1,91 @@
+import {
+  buildGenerateProgramPrompt,
+  buildGenerateProgramResponseSchema,
+  type GenerateProgramCatalogExercise,
+  type GenerateProgramRequest,
+} from './generateProgram';
+
+const catalog: GenerateProgramCatalogExercise[] = [
+  { id: '1', name: 'Barbell Bench Press', muscleGroup: 'chest', equipment: ['barbell', 'bench'] },
+  { id: '2', name: 'Pull-up', muscleGroup: 'back', equipment: ['pull_up_bar', 'bodyweight'] },
+];
+
+const request: GenerateProgramRequest = {
+  goal: 'build_muscle',
+  level: 'intermediate',
+  trainingLocation: 'gym',
+  equipment: ['barbell', 'dumbbells'],
+  splitPreference: 'split',
+  availableDaysPerWeek: 4,
+  sessionMinutes: 60,
+};
+
+describe('buildGenerateProgramResponseSchema', () => {
+  it('constrains exerciseName to the exact catalog names', () => {
+    const schema = buildGenerateProgramResponseSchema(request, catalog);
+    const exerciseNameSchema =
+      schema.properties.days.items.properties.exercises.items.properties.exerciseName;
+    expect(exerciseNameSchema.enum).toEqual(['Barbell Bench Press', 'Pull-up']);
+  });
+
+  it('requires every generated exercise field, including the nullable ones', () => {
+    const schema = buildGenerateProgramResponseSchema(request, catalog);
+    const exerciseSchema = schema.properties.days.items.properties.exercises.items;
+    expect(exerciseSchema.required).toEqual([
+      'exerciseName',
+      'sets',
+      'reps',
+      'restSeconds',
+      'note',
+    ]);
+    expect(exerciseSchema.properties.restSeconds.nullable).toBe(true);
+    expect(exerciseSchema.properties.note.nullable).toBe(true);
+  });
+
+  it('does not include targetWeight anywhere in the schema', () => {
+    const schema = buildGenerateProgramResponseSchema(request, catalog);
+    expect(JSON.stringify(schema)).not.toMatch(/weight/i);
+  });
+
+  it('pins the days array length to availableDaysPerWeek', () => {
+    const schema = buildGenerateProgramResponseSchema(
+      { ...request, availableDaysPerWeek: 3 },
+      catalog,
+    );
+    expect(schema.properties.days.minItems).toBe(3);
+    expect(schema.properties.days.maxItems).toBe(3);
+  });
+
+  it('throws for an empty catalog instead of emitting an unsatisfiable enum', () => {
+    expect(() => buildGenerateProgramResponseSchema(request, [])).toThrow(/non-empty/);
+  });
+});
+
+describe('buildGenerateProgramPrompt', () => {
+  it('includes every profile field the caller passed in', () => {
+    const prompt = buildGenerateProgramPrompt(request, catalog);
+    expect(prompt).toContain('build_muscle');
+    expect(prompt).toContain('intermediate');
+    expect(prompt).toContain('gym');
+    expect(prompt).toContain('barbell, dumbbells');
+    expect(prompt).toContain('split');
+    expect(prompt).toContain('exactly 4 day(s)');
+    expect(prompt).toContain('60 minutes');
+  });
+
+  it('lists every catalog exercise by exact name', () => {
+    const prompt = buildGenerateProgramPrompt(request, catalog);
+    expect(prompt).toContain('Barbell Bench Press');
+    expect(prompt).toContain('Pull-up');
+  });
+
+  it('falls back to "none specified" when no equipment is given', () => {
+    const prompt = buildGenerateProgramPrompt({ ...request, equipment: [] }, catalog);
+    expect(prompt).toContain('none specified');
+  });
+
+  it('instructs the model not to suggest a target weight', () => {
+    const prompt = buildGenerateProgramPrompt(request, catalog);
+    expect(prompt).toMatch(/do not suggest a target weight/i);
+  });
+});
