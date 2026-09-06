@@ -35,6 +35,16 @@ export default function AppLayout() {
         }}
       />
       <Stack.Screen
+        name="program-generate"
+        options={{
+          headerShown: true,
+          title: t('programs.generateTitle'),
+          headerStyle: { backgroundColor: colors.background },
+          headerShadowVisible: false,
+          headerTintColor: colors.textPrimary,
+        }}
+      />
+      <Stack.Screen
         name="program/[id]"
         options={{
           headerShown: true,

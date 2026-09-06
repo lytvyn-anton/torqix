@@ -1,3 +1,5 @@
+import { FunctionsHttpError } from '@supabase/supabase-js';
+
 import { supabase } from '../../../shared/api/supabase';
 import type { ActiveProgram, CreateProgramInput, Program, ProgramDetail } from '../types';
 
@@ -195,6 +197,50 @@ export async function updateProgram(programId: string, input: CreateProgramInput
       .insert(exerciseRows);
     if (exercisesError) throw exercisesError;
   }
+}
+
+// Thrown by generateProgram when the caller's profile is missing a field the Edge Function
+// needs (goal, level, etc.) — distinguished from a generic failure so the screen can send
+// the user to complete their profile instead of showing a plain "try again" error.
+export class IncompleteProfileError extends Error {
+  missingFields: string[];
+
+  constructor(missingFields: string[]) {
+    super('Complete your profile before generating a program');
+    this.name = 'IncompleteProfileError';
+    this.missingFields = missingFields;
+  }
+}
+
+type GenerateProgramResponseBody =
+  { program: Program } | { error: string; missingFields?: string[] };
+
+// Calls the generate-program Edge Function, which reads the caller's profile and the
+// exercise catalog, asks Gemini for a program, resolves and persists it server-side (see
+// supabase/functions/generate-program/index.ts), and returns the saved program — the same
+// shape createProgram returns, so the caller can navigate straight to its detail screen.
+// supabase-js forwards the current session's access token as the Authorization header
+// automatically, so no explicit user id is needed here.
+export async function generateProgram(): Promise<Program> {
+  const { data, error } =
+    await supabase.functions.invoke<GenerateProgramResponseBody>('generate-program');
+
+  if (error) {
+    if (error instanceof FunctionsHttpError) {
+      const body = (await error.context
+        .json()
+        .catch(() => null)) as GenerateProgramResponseBody | null;
+      if (body && 'missingFields' in body && body.missingFields) {
+        throw new IncompleteProfileError(body.missingFields);
+      }
+      throw new Error(body && 'error' in body ? body.error : error.message);
+    }
+    throw error;
+  }
+  if (!data || !('program' in data)) {
+    throw new Error('generate-program returned no program');
+  }
+  return data.program;
 }
 
 // Deletes a program that failed partway through creation, cascading to any days/exercises
