@@ -12,6 +12,7 @@ import { useTranslation } from 'react-i18next';
 import { Platform, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { GenerateProgramButton } from '../../../src/features/programs/components/GenerateProgramButton';
 import { NewProgramButton } from '../../../src/features/programs/components/NewProgramButton';
 import { ProfileAvatarButton } from '../../../src/features/profile/components/ProfileAvatarButton';
 import { SettingsButton } from '../../../src/features/settings/components/SettingsButton';
@@ -56,6 +57,7 @@ const TABS: {
     Icon: ProgramsIcon,
     headerRight: () => (
       <View style={staticStyles.headerRight}>
+        <GenerateProgramButton />
         <NewProgramButton />
         <ProfileAvatarButton />
         <SettingsButton />

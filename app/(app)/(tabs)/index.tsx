@@ -12,6 +12,7 @@ export default function TodayRoute() {
     <TodayScreen
       userId={session.user.id}
       onCreateProgram={() => router.push('/program-create')}
+      onGenerateProgram={() => router.push('/program-generate')}
       onOpenWorkout={(sessionId) =>
         router.push({ pathname: '/workout-session', params: { sessionId } })
       }

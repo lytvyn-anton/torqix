@@ -48,7 +48,12 @@ describe('TodayScreen', () => {
     } as unknown as ReturnType<typeof useTodaySession>);
 
     await render(
-      <TodayScreen userId="user-1" onCreateProgram={jest.fn()} onOpenWorkout={jest.fn()} />,
+      <TodayScreen
+        userId="user-1"
+        onCreateProgram={jest.fn()}
+        onGenerateProgram={jest.fn()}
+        onOpenWorkout={jest.fn()}
+      />,
     );
 
     expect(screen.getByTestId('today-loading')).toBeTruthy();
@@ -63,7 +68,12 @@ describe('TodayScreen', () => {
     } as unknown as ReturnType<typeof useActiveProgram>);
 
     await render(
-      <TodayScreen userId="user-1" onCreateProgram={jest.fn()} onOpenWorkout={jest.fn()} />,
+      <TodayScreen
+        userId="user-1"
+        onCreateProgram={jest.fn()}
+        onGenerateProgram={jest.fn()}
+        onOpenWorkout={jest.fn()}
+      />,
     );
 
     expect(screen.getByTestId('today-loading')).toBeTruthy();
@@ -77,7 +87,12 @@ describe('TodayScreen', () => {
     } as unknown as ReturnType<typeof useActiveProgram>);
 
     await render(
-      <TodayScreen userId="user-1" onCreateProgram={jest.fn()} onOpenWorkout={jest.fn()} />,
+      <TodayScreen
+        userId="user-1"
+        onCreateProgram={jest.fn()}
+        onGenerateProgram={jest.fn()}
+        onOpenWorkout={jest.fn()}
+      />,
     );
 
     expect(screen.getByTestId('today-load-error')).toBeTruthy();
@@ -92,12 +107,38 @@ describe('TodayScreen', () => {
     const onCreateProgram = jest.fn();
 
     await render(
-      <TodayScreen userId="user-1" onCreateProgram={onCreateProgram} onOpenWorkout={jest.fn()} />,
+      <TodayScreen
+        userId="user-1"
+        onCreateProgram={onCreateProgram}
+        onGenerateProgram={jest.fn()}
+        onOpenWorkout={jest.fn()}
+      />,
     );
 
     expect(screen.getByTestId('today-empty')).toBeTruthy();
     fireEvent.press(screen.getByTestId('today-create-program'));
     expect(onCreateProgram).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the empty state and calls onGenerateProgram when there is no active program', async () => {
+    mockedUseActiveProgram.mockReturnValue({
+      isLoading: false,
+      isError: false,
+      data: null,
+    } as unknown as ReturnType<typeof useActiveProgram>);
+    const onGenerateProgram = jest.fn();
+
+    await render(
+      <TodayScreen
+        userId="user-1"
+        onCreateProgram={jest.fn()}
+        onGenerateProgram={onGenerateProgram}
+        onOpenWorkout={jest.fn()}
+      />,
+    );
+
+    fireEvent.press(screen.getByTestId('today-generate-program'));
+    expect(onGenerateProgram).toHaveBeenCalledTimes(1);
   });
 
   it('keeps showing an already-loaded active program through a background refetch error', async () => {
@@ -108,7 +149,12 @@ describe('TodayScreen', () => {
     } as unknown as ReturnType<typeof useActiveProgram>);
 
     await render(
-      <TodayScreen userId="user-1" onCreateProgram={jest.fn()} onOpenWorkout={jest.fn()} />,
+      <TodayScreen
+        userId="user-1"
+        onCreateProgram={jest.fn()}
+        onGenerateProgram={jest.fn()}
+        onOpenWorkout={jest.fn()}
+      />,
     );
 
     expect(screen.queryByTestId('today-load-error')).toBeNull();
@@ -130,7 +176,12 @@ describe('TodayScreen', () => {
     const onOpenWorkout = jest.fn();
 
     await render(
-      <TodayScreen userId="user-1" onCreateProgram={jest.fn()} onOpenWorkout={onOpenWorkout} />,
+      <TodayScreen
+        userId="user-1"
+        onCreateProgram={jest.fn()}
+        onGenerateProgram={jest.fn()}
+        onOpenWorkout={onOpenWorkout}
+      />,
     );
 
     expect(screen.getByTestId('today-choose-day')).toBeTruthy();
@@ -162,7 +213,12 @@ describe('TodayScreen', () => {
     const onOpenWorkout = jest.fn();
 
     await render(
-      <TodayScreen userId="user-1" onCreateProgram={jest.fn()} onOpenWorkout={onOpenWorkout} />,
+      <TodayScreen
+        userId="user-1"
+        onCreateProgram={jest.fn()}
+        onGenerateProgram={jest.fn()}
+        onOpenWorkout={onOpenWorkout}
+      />,
     );
 
     expect(screen.getByTestId('today-continue-workout')).toBeTruthy();
