@@ -55,7 +55,7 @@ export function SetLoggingScreen({ userId, sessionId, onCancelled, onCompleted }
   const completeSession = useCompleteSession(userId);
   const cancelSession = useCancelSession(userId);
 
-  const [drafts, setDrafts] = useState<Record<string, Draft>>({});
+  const [drafts, setDrafts] = useState<Record<string, Draft[]>>({});
   const [cancelSheetVisible, setCancelSheetVisible] = useState(false);
 
   // The next set_index to assign per exercise, as an optimistic count layered on top of
@@ -66,29 +66,106 @@ export function SetLoggingScreen({ userId, sessionId, onCancelled, onCompleted }
   // what was actually assigned.
   const [loggedCountOverrides, setLoggedCountOverrides] = useState<Record<string, number>>({});
 
-  const setDraftField = (exercise: ProgramDayExerciseDetail, field: keyof Draft, value: string) => {
-    setDrafts((current) => ({
-      ...current,
-      [exercise.id]: { ...(current[exercise.id] ?? defaultDraft(exercise)), [field]: value },
-    }));
+  // handleLogSets fires several logSet.mutateAsync calls per tap (one per row), sequentially
+  // awaited — the shared useMutation's isPending/isError only ever reflect the single most
+  // recently dispatched call, so a per-exercise submitting/error flag has to be tracked here
+  // instead of trusting logSet.isPending / logSet.isError.
+  const [loggingExerciseCardIds, setLoggingExerciseCardIds] = useState<Record<string, boolean>>({});
+  const [logErrorExerciseCardIds, setLogErrorExerciseCardIds] = useState<Record<string, boolean>>(
+    {},
+  );
+
+  // Sets logged this session, kept visible on the card as their own reps/weight instead of
+  // collapsing into a bare count: setLogsQuery only reflects a set after its post-mutation
+  // invalidation refetches, so a just-logged set is held here until the query catches up
+  // (matched, and then dropped, by set_index).
+  const [optimisticLoggedSets, setOptimisticLoggedSets] = useState<Record<string, SetLog[]>>({});
+
+  const rowsFor = (exercise: ProgramDayExerciseDetail): Draft[] =>
+    drafts[exercise.id] ?? [defaultDraft(exercise)];
+
+  const setDraftField = (
+    exercise: ProgramDayExerciseDetail,
+    rowIndex: number,
+    field: keyof Draft,
+    value: string,
+  ) => {
+    setDrafts((current) => {
+      const rows = current[exercise.id] ?? [defaultDraft(exercise)];
+      return {
+        ...current,
+        [exercise.id]: rows.map((row, i) => (i === rowIndex ? { ...row, [field]: value } : row)),
+      };
+    });
   };
 
-  const loggedSetsFor = (exerciseId: string): SetLog[] =>
-    (setLogsQuery.data ?? []).filter((log) => log.exerciseId === exerciseId);
+  const handleAddSetRow = (exercise: ProgramDayExerciseDetail) => {
+    setDrafts((current) => {
+      const rows = current[exercise.id] ?? [defaultDraft(exercise)];
+      return { ...current, [exercise.id]: [...rows, defaultDraft(exercise)] };
+    });
+  };
+
+  const loggedSetsFor = (exerciseId: string): SetLog[] => {
+    const fromQuery = (setLogsQuery.data ?? []).filter((log) => log.exerciseId === exerciseId);
+    const knownIndexes = new Set(fromQuery.map((log) => log.setIndex));
+    const stillOptimistic = (optimisticLoggedSets[exerciseId] ?? []).filter(
+      (log) => !knownIndexes.has(log.setIndex),
+    );
+    return [...fromQuery, ...stillOptimistic].sort((a, b) => a.setIndex - b.setIndex);
+  };
 
   const nextSetIndexFor = (exerciseId: string): number =>
     Math.max(loggedSetsFor(exerciseId).length, loggedCountOverrides[exerciseId] ?? 0);
 
-  const handleLogSet = (exercise: ProgramDayExerciseDetail) => {
-    const draft = drafts[exercise.id] ?? defaultDraft(exercise);
-    const setIndex = nextSetIndexFor(exercise.exerciseId);
-    setLoggedCountOverrides((current) => ({ ...current, [exercise.exerciseId]: setIndex + 1 }));
-    logSet.mutate({
-      exerciseId: exercise.exerciseId,
-      setIndex,
-      repsDone: toNullableInt(draft.reps),
-      weight: toNullableFloat(draft.weight),
-    });
+  // Logs every row currently on the exercise's card, one at a time. Each row's set_index is
+  // reserved synchronously up front (before any awaits) so a second tap landing before this
+  // call resolves can't compute the same starting index and collide with it — a failed insert
+  // leaves a gap in the numbering rather than risking a duplicate. Rows that fail stay on the
+  // card so the user can retry them instead of silently losing that data; only rows that
+  // actually persisted are cleared back to a single blank row.
+  const handleLogSets = async (exercise: ProgramDayExerciseDetail) => {
+    const rows = rowsFor(exercise);
+    const startIndex = nextSetIndexFor(exercise.exerciseId);
+    setLoggedCountOverrides((current) => ({
+      ...current,
+      [exercise.exerciseId]: startIndex + rows.length,
+    }));
+    setLoggingExerciseCardIds((current) => ({ ...current, [exercise.id]: true }));
+    setLogErrorExerciseCardIds((current) => ({ ...current, [exercise.id]: false }));
+
+    const failedRows: Draft[] = [];
+    for (let i = 0; i < rows.length; i += 1) {
+      const row = rows[i];
+      const setIndex = startIndex + i;
+      const repsDone = toNullableInt(row.reps);
+      const weight = toNullableFloat(row.weight);
+      try {
+        await logSet.mutateAsync({ exerciseId: exercise.exerciseId, setIndex, repsDone, weight });
+        setOptimisticLoggedSets((current) => ({
+          ...current,
+          [exercise.exerciseId]: [
+            ...(current[exercise.exerciseId] ?? []),
+            {
+              id: `optimistic-${exercise.exerciseId}-${setIndex}`,
+              exerciseId: exercise.exerciseId,
+              setIndex,
+              repsDone,
+              weight,
+            },
+          ],
+        }));
+      } catch {
+        failedRows.push(row);
+      }
+    }
+
+    setLoggingExerciseCardIds((current) => ({ ...current, [exercise.id]: false }));
+    setLogErrorExerciseCardIds((current) => ({ ...current, [exercise.id]: failedRows.length > 0 }));
+    setDrafts((current) => ({
+      ...current,
+      [exercise.id]: failedRows.length > 0 ? failedRows : [defaultDraft(exercise)],
+    }));
   };
 
   const handleConfirmCancel = () => {
@@ -130,7 +207,7 @@ export function SetLoggingScreen({ userId, sessionId, onCancelled, onCompleted }
 
       <ScrollView contentContainerStyle={styles.container}>
         {(exercisesQuery.data ?? []).map((exercise) => {
-          const draft = drafts[exercise.id] ?? defaultDraft(exercise);
+          const rows = rowsFor(exercise);
           const loggedSets = loggedSetsFor(exercise.exerciseId);
           return (
             <View key={exercise.id} style={[formStyles.glassSurface, styles.exerciseCard]}>
@@ -156,46 +233,73 @@ export function SetLoggingScreen({ userId, sessionId, onCancelled, onCompleted }
               )}
 
               {loggedSets.length > 0 && (
-                <Text style={styles.loggedCount} testID={`set-logging-count-${exercise.id}`}>
-                  {t('workouts.setsLoggedCount', { count: loggedSets.length })}
-                </Text>
+                <View style={styles.loggedList} testID={`set-logging-count-${exercise.id}`}>
+                  {loggedSets.map((log) => (
+                    <Text key={log.id} style={styles.loggedRow}>
+                      {t('workouts.loggedSetEntry', {
+                        index: log.setIndex + 1,
+                        reps: log.repsDone ?? '—',
+                        weight: log.weight ?? '—',
+                      })}
+                    </Text>
+                  ))}
+                </View>
               )}
 
-              <View style={styles.fieldsRow}>
-                <TextInput
-                  style={[formStyles.input, styles.field]}
-                  value={draft.reps}
-                  onChangeText={(value) => setDraftField(exercise, 'reps', value)}
-                  placeholder={t('workouts.repsPlaceholder')}
-                  placeholderTextColor={colors.textFaint}
-                  keyboardType="number-pad"
-                  testID={`set-logging-${exercise.id}-reps`}
-                />
-                <TextInput
-                  style={[formStyles.input, styles.field]}
-                  value={draft.weight}
-                  onChangeText={(value) => setDraftField(exercise, 'weight', value)}
-                  placeholder={t('workouts.weightPlaceholder')}
-                  placeholderTextColor={colors.textFaint}
-                  keyboardType="decimal-pad"
-                  testID={`set-logging-${exercise.id}-weight`}
-                />
-              </View>
+              {rows.map((draft, rowIndex) => (
+                <View key={rowIndex} style={[styles.fieldsRow, styles.setRow]}>
+                  <TextInput
+                    style={[formStyles.input, styles.field]}
+                    value={draft.reps}
+                    onChangeText={(value) => setDraftField(exercise, rowIndex, 'reps', value)}
+                    placeholder={t('workouts.repsPlaceholder')}
+                    placeholderTextColor={colors.textFaint}
+                    keyboardType="number-pad"
+                    testID={
+                      rowIndex === 0
+                        ? `set-logging-${exercise.id}-reps`
+                        : `set-logging-${exercise.id}-reps-${rowIndex}`
+                    }
+                  />
+                  <TextInput
+                    style={[formStyles.input, styles.field]}
+                    value={draft.weight}
+                    onChangeText={(value) => setDraftField(exercise, rowIndex, 'weight', value)}
+                    placeholder={t('workouts.weightPlaceholder')}
+                    placeholderTextColor={colors.textFaint}
+                    keyboardType="decimal-pad"
+                    testID={
+                      rowIndex === 0
+                        ? `set-logging-${exercise.id}-weight`
+                        : `set-logging-${exercise.id}-weight-${rowIndex}`
+                    }
+                  />
+                </View>
+              ))}
 
-              <TouchableOpacity
-                onPress={() => handleLogSet(exercise)}
-                disabled={logSet.isPending}
-                style={styles.logSetButton}
-                accessibilityRole="button"
-                testID={`set-logging-${exercise.id}-log`}
-              >
-                <Text style={styles.logSetText}>{t('workouts.logSet')}</Text>
-              </TouchableOpacity>
+              <View style={styles.buttonsRow}>
+                <TouchableOpacity
+                  onPress={() => handleAddSetRow(exercise)}
+                  accessibilityRole="button"
+                  testID={`set-logging-${exercise.id}-add-set`}
+                >
+                  <Text style={styles.rowButtonText}>{t('workouts.addSet')}</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => handleLogSets(exercise)}
+                  disabled={loggingExerciseCardIds[exercise.id] === true}
+                  accessibilityRole="button"
+                  testID={`set-logging-${exercise.id}-log`}
+                >
+                  <Text style={styles.rowButtonText}>{t('workouts.logSet')}</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           );
         })}
 
-        {logSet.isError && (
+        {Object.values(logErrorExerciseCardIds).some(Boolean) && (
           <Text style={formStyles.error} testID="set-logging-log-error">
             {t('workouts.logSetError')}
           </Text>
@@ -282,24 +386,31 @@ function buildStyles(colors: ThemeColors) {
       color: colors.textMuted,
       fontSize: 12,
     },
-    loggedCount: {
+    loggedList: {
+      gap: 2,
+    },
+    loggedRow: {
       color: colors.accentDark,
       fontSize: 12,
       fontWeight: '600',
     },
+    setRow: {
+      marginTop: spacing.xs,
+    },
     fieldsRow: {
       flexDirection: 'row',
       gap: spacing.sm,
-      marginTop: spacing.xs,
     },
     field: {
       flex: 1,
     },
-    logSetButton: {
-      alignSelf: 'flex-start',
+    buttonsRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
       marginTop: spacing.xs,
     },
-    logSetText: {
+    rowButtonText: {
       color: colors.accentDark,
       fontWeight: '600',
     },
