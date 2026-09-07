@@ -22,7 +22,7 @@ import {
   type ResolvedProgram,
 } from '../_shared/generateProgram.ts';
 
-const GEMINI_MODEL = Deno.env.get('GEMINI_MODEL') ?? 'gemini-2.5-flash';
+const GEMINI_MODEL = Deno.env.get('GEMINI_MODEL') ?? 'gemini-3.6-flash';
 
 Deno.serve(async (req) => {
   try {
