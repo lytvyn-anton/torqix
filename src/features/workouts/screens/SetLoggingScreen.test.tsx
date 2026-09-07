@@ -1,4 +1,4 @@
-import { fireEvent, screen } from '@testing-library/react-native';
+import { fireEvent, screen, waitFor } from '@testing-library/react-native';
 
 import '../../../shared/i18n';
 import { renderWithProviders as render } from '../../../shared/testing/renderWithProviders';
@@ -58,9 +58,9 @@ describe('SetLoggingScreen', () => {
       isError: false,
     } as unknown as ReturnType<typeof useProgramDayExercises>);
     mockedUseSetLogs.mockReturnValue({ data: [] } as unknown as ReturnType<typeof useSetLogs>);
-    logSetMutate = jest.fn();
+    logSetMutate = jest.fn().mockResolvedValue(undefined);
     mockedUseLogSet.mockReturnValue({
-      mutate: logSetMutate,
+      mutateAsync: logSetMutate,
     } as unknown as ReturnType<typeof useLogSet>);
     completeMutate = jest.fn();
     mockedUseCompleteSession.mockReturnValue({
@@ -107,12 +107,14 @@ describe('SetLoggingScreen', () => {
 
     await fireEvent.press(screen.getByTestId('set-logging-pde-1-log'));
 
-    expect(logSetMutate).toHaveBeenCalledWith({
-      exerciseId: 'ex-1',
-      setIndex: 0,
-      repsDone: 10,
-      weight: 40,
-    });
+    await waitFor(() =>
+      expect(logSetMutate).toHaveBeenCalledWith({
+        exerciseId: 'ex-1',
+        setIndex: 0,
+        repsDone: 10,
+        weight: 40,
+      }),
+    );
     // First "real" render in this describe block is slow on CI (see the same bump on
     // ProgramCreateScreen.test.tsx's first test) — default 5000ms timeout flaked there.
   }, 15000);
@@ -131,10 +133,12 @@ describe('SetLoggingScreen', () => {
       />,
     );
 
-    expect(screen.getByText('1 logged')).toBeTruthy();
+    expect(screen.getByText('Set 1: 10 reps × 40 kg')).toBeTruthy();
 
     await fireEvent.press(screen.getByTestId('set-logging-pde-1-log'));
-    expect(logSetMutate).toHaveBeenCalledWith(expect.objectContaining({ setIndex: 1 }));
+    await waitFor(() =>
+      expect(logSetMutate).toHaveBeenCalledWith(expect.objectContaining({ setIndex: 1 })),
+    );
   });
 
   it('assigns increasing set indexes across taps even before the query cache reflects the first log', async () => {
@@ -152,6 +156,7 @@ describe('SetLoggingScreen', () => {
     await fireEvent.press(screen.getByTestId('set-logging-pde-1-log'));
     await fireEvent.press(screen.getByTestId('set-logging-pde-1-log'));
 
+    await waitFor(() => expect(logSetMutate).toHaveBeenCalledTimes(2));
     expect(logSetMutate).toHaveBeenNthCalledWith(1, expect.objectContaining({ setIndex: 0 }));
     expect(logSetMutate).toHaveBeenNthCalledWith(2, expect.objectContaining({ setIndex: 1 }));
   });
@@ -170,12 +175,57 @@ describe('SetLoggingScreen', () => {
     await fireEvent.changeText(screen.getByTestId('set-logging-pde-1-weight'), '42.5');
     await fireEvent.press(screen.getByTestId('set-logging-pde-1-log'));
 
-    expect(logSetMutate).toHaveBeenCalledWith({
+    await waitFor(() =>
+      expect(logSetMutate).toHaveBeenCalledWith({
+        exerciseId: 'ex-1',
+        setIndex: 0,
+        repsDone: 8,
+        weight: 42.5,
+      }),
+    );
+  });
+
+  it('lets the user add a second set row with its own reps/weight and logs both at once', async () => {
+    await render(
+      <SetLoggingScreen
+        userId="user-1"
+        sessionId="session-1"
+        onCancelled={jest.fn()}
+        onCompleted={jest.fn()}
+      />,
+    );
+
+    await fireEvent.changeText(screen.getByTestId('set-logging-pde-1-reps'), '10');
+    await fireEvent.changeText(screen.getByTestId('set-logging-pde-1-weight'), '15');
+
+    await fireEvent.press(screen.getByTestId('set-logging-pde-1-add-set'));
+
+    await fireEvent.changeText(screen.getByTestId('set-logging-pde-1-reps-1'), '8');
+    await fireEvent.changeText(screen.getByTestId('set-logging-pde-1-weight-1'), '20');
+
+    await fireEvent.press(screen.getByTestId('set-logging-pde-1-log'));
+
+    await waitFor(() => expect(logSetMutate).toHaveBeenCalledTimes(2));
+    expect(logSetMutate).toHaveBeenNthCalledWith(1, {
       exerciseId: 'ex-1',
       setIndex: 0,
-      repsDone: 8,
-      weight: 42.5,
+      repsDone: 10,
+      weight: 15,
     });
+    expect(logSetMutate).toHaveBeenNthCalledWith(2, {
+      exerciseId: 'ex-1',
+      setIndex: 1,
+      repsDone: 8,
+      weight: 20,
+    });
+
+    // Both rows persisted, so the input fields reset back to a single blank row prefilled
+    // with the exercise's target defaults — but the logged values themselves stay visible
+    // on the card (not just a count), so the user can see exactly what was recorded.
+    await waitFor(() => expect(screen.queryByTestId('set-logging-pde-1-reps-1')).toBeNull());
+    expect(screen.getByTestId('set-logging-pde-1-reps').props.value).toBe('10');
+    expect(screen.getByText('Set 1: 10 reps × 15 kg')).toBeTruthy();
+    expect(screen.getByText('Set 2: 8 reps × 20 kg')).toBeTruthy();
   });
 
   it('shows the cancel sheet and cancels the session on confirm', async () => {
@@ -221,12 +271,14 @@ describe('SetLoggingScreen', () => {
     expect(onCompleted).toHaveBeenCalledWith('session-1');
   });
 
-  it('disables the log-set button while a log is in flight, and shows an error on failure', async () => {
-    mockedUseLogSet.mockReturnValue({
-      mutate: logSetMutate,
-      isPending: true,
-      isError: true,
-    } as unknown as ReturnType<typeof useLogSet>);
+  it('disables the log-set button while a log is in flight', async () => {
+    let resolveLog: () => void = () => {};
+    logSetMutate.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveLog = resolve;
+        }),
+    );
 
     await render(
       <SetLoggingScreen
@@ -237,10 +289,41 @@ describe('SetLoggingScreen', () => {
       />,
     );
 
-    expect(screen.getByTestId('set-logging-pde-1-log').props.accessibilityState.disabled).toBe(
-      true,
+    fireEvent.press(screen.getByTestId('set-logging-pde-1-log'));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('set-logging-pde-1-log').props.accessibilityState.disabled).toBe(
+        true,
+      ),
     );
-    expect(screen.getByTestId('set-logging-log-error')).toBeTruthy();
+
+    resolveLog();
+
+    await waitFor(() =>
+      expect(screen.getByTestId('set-logging-pde-1-log').props.accessibilityState.disabled).toBe(
+        false,
+      ),
+    );
+  });
+
+  it('keeps a failed row on the card (with an error shown) instead of clearing it', async () => {
+    logSetMutate.mockRejectedValueOnce(new Error('network error'));
+
+    await render(
+      <SetLoggingScreen
+        userId="user-1"
+        sessionId="session-1"
+        onCancelled={jest.fn()}
+        onCompleted={jest.fn()}
+      />,
+    );
+
+    await fireEvent.press(screen.getByTestId('set-logging-pde-1-log'));
+
+    await waitFor(() => expect(screen.getByTestId('set-logging-log-error')).toBeTruthy());
+    // The failed row's values stay on the card so the user can retry without re-typing,
+    // rather than being wiped like a successfully logged row would be.
+    expect(screen.getByTestId('set-logging-pde-1-reps').props.value).toBe('10');
   });
 
   it('shows an error in the cancel sheet when cancelling fails', async () => {
