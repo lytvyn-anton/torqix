@@ -205,7 +205,7 @@ export default function TabsLayout() {
           ),
         }}
       >
-        {TABS.map(({ name, titleKey, Icon, headerRight }) => (
+        {TABS.map(({ name, titleKey, Icon, headerRight }, index) => (
           <Tabs.Screen
             key={name}
             name={name}
@@ -213,6 +213,19 @@ export default function TabsLayout() {
               title: t(titleKey),
               tabBarIcon: ({ color, size }) => <Icon color={color} size={size} />,
               ...(headerRight ? { headerRight } : {}),
+              // The bar's corner radius equals half its height, so its sides are full
+              // semicircles rather than flat edges — the first/last tab's pill sits right
+              // where that curve is, and without this inset it reads as pinched against the
+              // rounded corner (unlike the middle tabs, which sit against flat edges).
+              // `tabBarItemStyle` targets just this one item's box, not the whole bar's
+              // padding, so the blur/tint background (an absoluteFill sibling of the tab
+              // items row within the bar container) stays full width instead of shrinking
+              // away from the border/radius drawn on that same container.
+              ...(index === 0
+                ? { tabBarItemStyle: staticStyles.tabItemFirst }
+                : index === TABS.length - 1
+                  ? { tabBarItemStyle: staticStyles.tabItemLast }
+                  : {}),
             }}
           />
         ))}
@@ -233,6 +246,12 @@ const staticStyles = StyleSheet.create({
   tabBarBackgroundClip: {
     borderRadius: TAB_BAR_HEIGHT / 2,
     overflow: 'hidden',
+  },
+  tabItemFirst: {
+    marginStart: spacing.xs,
+  },
+  tabItemLast: {
+    marginEnd: spacing.xs,
   },
   tabButtonOverride: {
     // The library's own item style aligns content to the top of the tab column
