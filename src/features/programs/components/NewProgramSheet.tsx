@@ -2,9 +2,10 @@ import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Modal, StyleSheet, Text, TouchableOpacity } from 'react-native';
 
+import { BottomSheetPanel } from '../../../shared/components/BottomSheetPanel';
 import { useFormStyles } from '../../../shared/theme/formStyles';
 import { useTheme } from '../../../shared/theme/ThemeProvider';
-import { radii, spacing, type ThemeColors } from '../../../shared/theme/theme';
+import { spacing, type ThemeColors } from '../../../shared/theme/theme';
 
 type Props = {
   visible: boolean;
@@ -38,29 +39,27 @@ export function NewProgramSheet({ visible, onGenerate, onCreateManually, onClose
         accessibilityRole="button"
         accessibilityLabel={t('exercises.close')}
       >
-        <TouchableOpacity
-          style={[formStyles.glassSurface, styles.sheet]}
-          activeOpacity={1}
-          onPress={(event) => event.stopPropagation()}
-        >
-          <Text style={styles.title}>{t('programs.createTitle')}</Text>
+        <TouchableOpacity activeOpacity={1} onPress={(event) => event.stopPropagation()}>
+          <BottomSheetPanel>
+            <Text style={styles.title}>{t('programs.createTitle')}</Text>
 
-          <TouchableOpacity
-            style={[formStyles.primaryButton, styles.generateButton]}
-            onPress={onGenerate}
-            accessibilityRole="button"
-            testID="new-program-sheet-generate"
-          >
-            <Text style={formStyles.primaryButtonText}>{t('programs.generateTitle')}</Text>
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={[formStyles.primaryButton, styles.generateButton]}
+              onPress={onGenerate}
+              accessibilityRole="button"
+              testID="new-program-sheet-generate"
+            >
+              <Text style={formStyles.primaryButtonText}>{t('programs.generateTitle')}</Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            onPress={onCreateManually}
-            accessibilityRole="button"
-            testID="new-program-sheet-manual"
-          >
-            <Text style={styles.manualText}>{t('programs.createManually')}</Text>
-          </TouchableOpacity>
+            <TouchableOpacity
+              onPress={onCreateManually}
+              accessibilityRole="button"
+              testID="new-program-sheet-manual"
+            >
+              <Text style={styles.manualText}>{t('programs.createManually')}</Text>
+            </TouchableOpacity>
+          </BottomSheetPanel>
         </TouchableOpacity>
       </TouchableOpacity>
     </Modal>
@@ -73,12 +72,6 @@ function buildStyles(colors: ThemeColors) {
       flex: 1,
       backgroundColor: 'rgba(0, 0, 0, 0.4)',
       justifyContent: 'flex-end',
-    },
-    sheet: {
-      borderTopLeftRadius: radii.xl,
-      borderTopRightRadius: radii.xl,
-      padding: spacing.xl,
-      gap: spacing.sm,
     },
     title: {
       color: colors.textPrimary,

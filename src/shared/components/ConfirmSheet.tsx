@@ -1,9 +1,10 @@
 import { useMemo } from 'react';
 import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
+import { BottomSheetPanel } from './BottomSheetPanel';
 import { useFormStyles } from '../theme/formStyles';
 import { useTheme } from '../theme/ThemeProvider';
-import { radii, spacing, type ThemeColors } from '../theme/theme';
+import { spacing, type ThemeColors } from '../theme/theme';
 
 type Props = {
   visible: boolean;
@@ -50,7 +51,7 @@ export function ConfirmSheet({
       testID={`${testIdPrefix}-sheet`}
     >
       <View style={styles.backdrop}>
-        <View style={[formStyles.glassSurface, styles.sheet]}>
+        <BottomSheetPanel>
           <Text style={styles.title}>{title}</Text>
           <Text style={styles.body}>{body}</Text>
 
@@ -77,7 +78,7 @@ export function ConfirmSheet({
           >
             <Text style={styles.keepGoingText}>{keepGoingLabel}</Text>
           </TouchableOpacity>
-        </View>
+        </BottomSheetPanel>
       </View>
     </Modal>
   );
@@ -89,12 +90,6 @@ function buildStyles(colors: ThemeColors) {
       flex: 1,
       backgroundColor: 'rgba(0, 0, 0, 0.4)',
       justifyContent: 'flex-end',
-    },
-    sheet: {
-      borderTopLeftRadius: radii.xl,
-      borderTopRightRadius: radii.xl,
-      padding: spacing.xl,
-      gap: spacing.sm,
     },
     title: {
       color: colors.textPrimary,
