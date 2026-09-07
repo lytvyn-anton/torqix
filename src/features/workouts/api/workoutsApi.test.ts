@@ -7,11 +7,10 @@ import {
   getProgramDayExercises,
   getProgramDays,
   getSession,
-  getSetLogs,
   getTodaySession,
   getWorkoutHistory,
   getWorkoutSummary,
-  logSet,
+  logSets,
   startWorkoutSession,
 } from './workoutsApi';
 
@@ -198,56 +197,43 @@ describe('getSession', () => {
   });
 });
 
-describe('getSetLogs', () => {
-  it('queries set_logs for the session, ordered, mapped', async () => {
-    const order = jest.fn().mockResolvedValue({
-      data: [{ id: 'log-1', exercise_id: 'ex-1', set_index: 0, reps_done: 10, weight: 40 }],
+describe('logSets', () => {
+  it('bulk-inserts every set log for the session and returns them, mapped', async () => {
+    const select = jest.fn().mockResolvedValue({
+      data: [
+        { id: 'log-1', exercise_id: 'ex-1', set_index: 0, reps_done: 10, weight: 40 },
+        { id: 'log-2', exercise_id: 'ex-1', set_index: 1, reps_done: 8, weight: 42.5 },
+      ],
       error: null,
     });
-    const eq = jest.fn().mockReturnValue({ order });
-    const select = jest.fn().mockReturnValue({ eq });
-    mockedFrom.mockReturnValue({ select } as never);
-
-    const result = await getSetLogs('session-1');
-
-    expect(eq).toHaveBeenCalledWith('workout_session_id', 'session-1');
-    expect(result).toEqual([
-      { id: 'log-1', exerciseId: 'ex-1', setIndex: 0, repsDone: 10, weight: 40 },
-    ]);
-  });
-});
-
-describe('logSet', () => {
-  it('inserts a set log and returns it, mapped', async () => {
-    const single = jest.fn().mockResolvedValue({
-      data: { id: 'log-1', exercise_id: 'ex-1', set_index: 0, reps_done: 10, weight: 40 },
-      error: null,
-    });
-    const select = jest.fn().mockReturnValue({ single });
     const insert = jest.fn().mockReturnValue({ select });
     mockedFrom.mockReturnValue({ insert } as never);
 
-    const result = await logSet('session-1', {
-      exerciseId: 'ex-1',
-      setIndex: 0,
-      repsDone: 10,
-      weight: 40,
-    });
+    const result = await logSets('session-1', [
+      { exerciseId: 'ex-1', setIndex: 0, repsDone: 10, weight: 40 },
+      { exerciseId: 'ex-1', setIndex: 1, repsDone: 8, weight: 42.5 },
+    ]);
 
-    expect(insert).toHaveBeenCalledWith({
-      workout_session_id: 'session-1',
-      exercise_id: 'ex-1',
-      set_index: 0,
-      reps_done: 10,
-      weight: 40,
-    });
-    expect(result).toEqual({
-      id: 'log-1',
-      exerciseId: 'ex-1',
-      setIndex: 0,
-      repsDone: 10,
-      weight: 40,
-    });
+    expect(insert).toHaveBeenCalledWith([
+      {
+        workout_session_id: 'session-1',
+        exercise_id: 'ex-1',
+        set_index: 0,
+        reps_done: 10,
+        weight: 40,
+      },
+      {
+        workout_session_id: 'session-1',
+        exercise_id: 'ex-1',
+        set_index: 1,
+        reps_done: 8,
+        weight: 42.5,
+      },
+    ]);
+    expect(result).toEqual([
+      { id: 'log-1', exerciseId: 'ex-1', setIndex: 0, repsDone: 10, weight: 40 },
+      { id: 'log-2', exerciseId: 'ex-1', setIndex: 1, repsDone: 8, weight: 42.5 },
+    ]);
   });
 });
 

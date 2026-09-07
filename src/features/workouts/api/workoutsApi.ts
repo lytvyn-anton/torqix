@@ -115,12 +115,23 @@ export async function startWorkoutSession(
   };
 }
 
-export async function getSetLogs(sessionId: string): Promise<SetLog[]> {
+// Persists every set entered during a workout in one insert, called once at "Finish
+// workout" rather than per set as it's typed — nothing is written to set_logs until the
+// user finishes (or cancels, discarding it).
+export async function logSets(sessionId: string, inputs: LogSetInput[]): Promise<SetLog[]> {
+  if (inputs.length === 0) return [];
   const { data, error } = await supabase
     .from('set_logs')
-    .select('id, exercise_id, set_index, reps_done, weight')
-    .eq('workout_session_id', sessionId)
-    .order('created_at', { ascending: true });
+    .insert(
+      inputs.map((input) => ({
+        workout_session_id: sessionId,
+        exercise_id: input.exerciseId,
+        set_index: input.setIndex,
+        reps_done: input.repsDone,
+        weight: input.weight,
+      })),
+    )
+    .select('id, exercise_id, set_index, reps_done, weight');
   if (error) throw error;
   return data.map((row) => ({
     id: row.id,
@@ -129,28 +140,6 @@ export async function getSetLogs(sessionId: string): Promise<SetLog[]> {
     repsDone: row.reps_done,
     weight: row.weight,
   }));
-}
-
-export async function logSet(sessionId: string, input: LogSetInput): Promise<SetLog> {
-  const { data, error } = await supabase
-    .from('set_logs')
-    .insert({
-      workout_session_id: sessionId,
-      exercise_id: input.exerciseId,
-      set_index: input.setIndex,
-      reps_done: input.repsDone,
-      weight: input.weight,
-    })
-    .select('id, exercise_id, set_index, reps_done, weight')
-    .single();
-  if (error) throw error;
-  return {
-    id: data.id,
-    exerciseId: data.exercise_id,
-    setIndex: data.set_index,
-    repsDone: data.reps_done,
-    weight: data.weight,
-  };
 }
 
 export async function completeSession(sessionId: string): Promise<void> {

@@ -15,11 +15,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { CancelWorkoutSheet } from '../components/CancelWorkoutSheet';
 import { useCancelSession } from '../hooks/useCancelSession';
 import { useCompleteSession } from '../hooks/useCompleteSession';
-import { useLogSet } from '../hooks/useLogSet';
+import { useLogSets } from '../hooks/useLogSets';
 import { useProgramDayExercises } from '../hooks/useProgramDayExercises';
-import { useSetLogs } from '../hooks/useSetLogs';
 import { useWorkoutSession } from '../hooks/useWorkoutSession';
-import type { ProgramDayExerciseDetail, SetLog } from '../types';
+import type { LogSetInput, ProgramDayExerciseDetail } from '../types';
 import { useFormStyles } from '../../../shared/theme/formStyles';
 import { useTheme } from '../../../shared/theme/ThemeProvider';
 import { spacing, type ThemeColors } from '../../../shared/theme/theme';
@@ -50,39 +49,18 @@ export function SetLoggingScreen({ userId, sessionId, onCancelled, onCompleted }
 
   const sessionQuery = useWorkoutSession(sessionId);
   const exercisesQuery = useProgramDayExercises(sessionQuery.data?.programDayId);
-  const setLogsQuery = useSetLogs(sessionId);
-  const logSet = useLogSet(sessionId);
+  const logSets = useLogSets(sessionId);
   const completeSession = useCompleteSession(userId);
   const cancelSession = useCancelSession(userId);
 
+  // Nothing is written to set_logs while the workout is in progress — each exercise's sets
+  // live here as plain draft rows (added via "+ Add set") and are only persisted in bulk
+  // when the user taps "Finish workout". An exercise the user never touched has no entry
+  // here at all, so it contributes nothing to save.
   const [drafts, setDrafts] = useState<Record<string, Draft[]>>({});
   const [cancelSheetVisible, setCancelSheetVisible] = useState(false);
-
-  // The next set_index to assign per exercise, as an optimistic count layered on top of
-  // setLogsQuery: that query only reflects a logged set after its post-mutation
-  // invalidation refetches, so two quick taps before that refetch lands would otherwise
-  // both read the same "already logged" count and submit the same set_index. Only ever
-  // written from the event handler below (never during render), so it can't drift from
-  // what was actually assigned.
-  const [loggedCountOverrides, setLoggedCountOverrides] = useState<Record<string, number>>({});
-
-  // handleLogSets fires several logSet.mutateAsync calls per tap (one per row), sequentially
-  // awaited — the shared useMutation's isPending/isError only ever reflect the single most
-  // recently dispatched call, so a per-exercise submitting/error flag has to be tracked here
-  // instead of trusting logSet.isPending / logSet.isError.
-  const [loggingExerciseCardIds, setLoggingExerciseCardIds] = useState<Record<string, boolean>>({});
-  const [logErrorExerciseCardIds, setLogErrorExerciseCardIds] = useState<Record<string, boolean>>(
-    {},
-  );
-
-  // Sets logged this session, kept visible on the card as their own reps/weight instead of
-  // collapsing into a bare count: setLogsQuery only reflects a set after its post-mutation
-  // invalidation refetches, so a just-logged set is held here until the query catches up
-  // (matched, and then dropped, by set_index).
-  const [optimisticLoggedSets, setOptimisticLoggedSets] = useState<Record<string, SetLog[]>>({});
-
-  const rowsFor = (exercise: ProgramDayExerciseDetail): Draft[] =>
-    drafts[exercise.id] ?? [defaultDraft(exercise)];
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveFailed, setSaveFailed] = useState(false);
 
   const setDraftField = (
     exercise: ProgramDayExerciseDetail,
@@ -91,7 +69,7 @@ export function SetLoggingScreen({ userId, sessionId, onCancelled, onCompleted }
     value: string,
   ) => {
     setDrafts((current) => {
-      const rows = current[exercise.id] ?? [defaultDraft(exercise)];
+      const rows = current[exercise.id] ?? [];
       return {
         ...current,
         [exercise.id]: rows.map((row, i) => (i === rowIndex ? { ...row, [field]: value } : row)),
@@ -101,79 +79,51 @@ export function SetLoggingScreen({ userId, sessionId, onCancelled, onCompleted }
 
   const handleAddSetRow = (exercise: ProgramDayExerciseDetail) => {
     setDrafts((current) => {
-      const rows = current[exercise.id] ?? [defaultDraft(exercise)];
+      const rows = current[exercise.id] ?? [];
       return { ...current, [exercise.id]: [...rows, defaultDraft(exercise)] };
     });
-  };
-
-  const loggedSetsFor = (exerciseId: string): SetLog[] => {
-    const fromQuery = (setLogsQuery.data ?? []).filter((log) => log.exerciseId === exerciseId);
-    const knownIndexes = new Set(fromQuery.map((log) => log.setIndex));
-    const stillOptimistic = (optimisticLoggedSets[exerciseId] ?? []).filter(
-      (log) => !knownIndexes.has(log.setIndex),
-    );
-    return [...fromQuery, ...stillOptimistic].sort((a, b) => a.setIndex - b.setIndex);
-  };
-
-  const nextSetIndexFor = (exerciseId: string): number =>
-    Math.max(loggedSetsFor(exerciseId).length, loggedCountOverrides[exerciseId] ?? 0);
-
-  // Logs every row currently on the exercise's card, one at a time. Each row's set_index is
-  // reserved synchronously up front (before any awaits) so a second tap landing before this
-  // call resolves can't compute the same starting index and collide with it — a failed insert
-  // leaves a gap in the numbering rather than risking a duplicate. Rows that fail stay on the
-  // card so the user can retry them instead of silently losing that data; only rows that
-  // actually persisted are cleared back to a single blank row.
-  const handleLogSets = async (exercise: ProgramDayExerciseDetail) => {
-    const rows = rowsFor(exercise);
-    const startIndex = nextSetIndexFor(exercise.exerciseId);
-    setLoggedCountOverrides((current) => ({
-      ...current,
-      [exercise.exerciseId]: startIndex + rows.length,
-    }));
-    setLoggingExerciseCardIds((current) => ({ ...current, [exercise.id]: true }));
-    setLogErrorExerciseCardIds((current) => ({ ...current, [exercise.id]: false }));
-
-    const failedRows: Draft[] = [];
-    for (let i = 0; i < rows.length; i += 1) {
-      const row = rows[i];
-      const setIndex = startIndex + i;
-      const repsDone = toNullableInt(row.reps);
-      const weight = toNullableFloat(row.weight);
-      try {
-        await logSet.mutateAsync({ exerciseId: exercise.exerciseId, setIndex, repsDone, weight });
-        setOptimisticLoggedSets((current) => ({
-          ...current,
-          [exercise.exerciseId]: [
-            ...(current[exercise.exerciseId] ?? []),
-            {
-              id: `optimistic-${exercise.exerciseId}-${setIndex}`,
-              exerciseId: exercise.exerciseId,
-              setIndex,
-              repsDone,
-              weight,
-            },
-          ],
-        }));
-      } catch {
-        failedRows.push(row);
-      }
-    }
-
-    setLoggingExerciseCardIds((current) => ({ ...current, [exercise.id]: false }));
-    setLogErrorExerciseCardIds((current) => ({ ...current, [exercise.id]: failedRows.length > 0 }));
-    setDrafts((current) => ({
-      ...current,
-      [exercise.id]: failedRows.length > 0 ? failedRows : [defaultDraft(exercise)],
-    }));
   };
 
   const handleConfirmCancel = () => {
     cancelSession.mutate(sessionId, { onSuccess: () => onCancelled() });
   };
 
-  const handleFinish = () => {
-    completeSession.mutate(sessionId, { onSuccess: () => onCompleted(sessionId) });
+  // Persists every set entered across all exercises in one bulk insert, then marks the
+  // session done — only once the insert succeeds, so a failed save doesn't complete a
+  // session with missing data. set_index is assigned from a running per-exercise counter
+  // (not the row's raw array position) so a blank skipped row can't leave a gap, and two
+  // program-day-exercise cards sharing the same underlying exercise can't both start
+  // numbering from 0 and collide. Drafts are cleared as soon as the insert succeeds — before
+  // completeSession runs — so if completing the session then fails, retrying "Finish" only
+  // retries that (nothing left in `inputs`) instead of re-inserting the same sets.
+  const handleFinish = async () => {
+    setSaveFailed(false);
+    setIsSaving(true);
+    const inputs: LogSetInput[] = [];
+    const nextSetIndexByExercise: Record<string, number> = {};
+    for (const exercise of exercisesQuery.data ?? []) {
+      (drafts[exercise.id] ?? []).forEach((row) => {
+        const repsDone = toNullableInt(row.reps);
+        const weight = toNullableFloat(row.weight);
+        if (repsDone == null && weight == null) return;
+        const setIndex = nextSetIndexByExercise[exercise.exerciseId] ?? 0;
+        nextSetIndexByExercise[exercise.exerciseId] = setIndex + 1;
+        inputs.push({ exerciseId: exercise.exerciseId, setIndex, repsDone, weight });
+      });
+    }
+
+    try {
+      if (inputs.length > 0) {
+        await logSets.mutateAsync(inputs);
+        setDrafts({});
+      }
+      await completeSession.mutateAsync(sessionId);
+      onCompleted(sessionId);
+    } catch {
+      setSaveFailed(true);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   if (sessionQuery.isLoading || exercisesQuery.isLoading) {
@@ -207,8 +157,7 @@ export function SetLoggingScreen({ userId, sessionId, onCancelled, onCompleted }
 
       <ScrollView contentContainerStyle={styles.container}>
         {(exercisesQuery.data ?? []).map((exercise) => {
-          const rows = rowsFor(exercise);
-          const loggedSets = loggedSetsFor(exercise.exerciseId);
+          const rows = drafts[exercise.id] ?? [];
           return (
             <View key={exercise.id} style={[formStyles.glassSurface, styles.exerciseCard]}>
               <View style={styles.exerciseHeader}>
@@ -232,20 +181,6 @@ export function SetLoggingScreen({ userId, sessionId, onCancelled, onCompleted }
                 </Text>
               )}
 
-              {loggedSets.length > 0 && (
-                <View style={styles.loggedList} testID={`set-logging-count-${exercise.id}`}>
-                  {loggedSets.map((log) => (
-                    <Text key={log.id} style={styles.loggedRow}>
-                      {t('workouts.loggedSetEntry', {
-                        index: log.setIndex + 1,
-                        reps: log.repsDone ?? '—',
-                        weight: log.weight ?? '—',
-                      })}
-                    </Text>
-                  ))}
-                </View>
-              )}
-
               {rows.map((draft, rowIndex) => (
                 <View key={rowIndex} style={[styles.fieldsRow, styles.setRow]}>
                   <TextInput
@@ -255,11 +190,7 @@ export function SetLoggingScreen({ userId, sessionId, onCancelled, onCompleted }
                     placeholder={t('workouts.repsPlaceholder')}
                     placeholderTextColor={colors.textFaint}
                     keyboardType="number-pad"
-                    testID={
-                      rowIndex === 0
-                        ? `set-logging-${exercise.id}-reps`
-                        : `set-logging-${exercise.id}-reps-${rowIndex}`
-                    }
+                    testID={`set-logging-${exercise.id}-reps-${rowIndex}`}
                   />
                   <TextInput
                     style={[formStyles.input, styles.field]}
@@ -268,43 +199,24 @@ export function SetLoggingScreen({ userId, sessionId, onCancelled, onCompleted }
                     placeholder={t('workouts.weightPlaceholder')}
                     placeholderTextColor={colors.textFaint}
                     keyboardType="decimal-pad"
-                    testID={
-                      rowIndex === 0
-                        ? `set-logging-${exercise.id}-weight`
-                        : `set-logging-${exercise.id}-weight-${rowIndex}`
-                    }
+                    testID={`set-logging-${exercise.id}-weight-${rowIndex}`}
                   />
                 </View>
               ))}
 
-              <View style={styles.buttonsRow}>
-                <TouchableOpacity
-                  onPress={() => handleAddSetRow(exercise)}
-                  accessibilityRole="button"
-                  testID={`set-logging-${exercise.id}-add-set`}
-                >
-                  <Text style={styles.rowButtonText}>{t('workouts.addSet')}</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  onPress={() => handleLogSets(exercise)}
-                  disabled={loggingExerciseCardIds[exercise.id] === true}
-                  accessibilityRole="button"
-                  testID={`set-logging-${exercise.id}-log`}
-                >
-                  <Text style={styles.rowButtonText}>{t('workouts.logSet')}</Text>
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity
+                onPress={() => handleAddSetRow(exercise)}
+                style={styles.addSetButton}
+                accessibilityRole="button"
+                testID={`set-logging-${exercise.id}-add-set`}
+              >
+                <Text style={styles.rowButtonText}>{t('workouts.addSet')}</Text>
+              </TouchableOpacity>
             </View>
           );
         })}
 
-        {Object.values(logErrorExerciseCardIds).some(Boolean) && (
-          <Text style={formStyles.error} testID="set-logging-log-error">
-            {t('workouts.logSetError')}
-          </Text>
-        )}
-        {completeSession.isError && (
+        {(saveFailed || completeSession.isError) && (
           <Text style={formStyles.error} testID="set-logging-finish-error">
             {t('workouts.finishError')}
           </Text>
@@ -313,7 +225,7 @@ export function SetLoggingScreen({ userId, sessionId, onCancelled, onCompleted }
         <TouchableOpacity
           style={[formStyles.primaryButton, styles.finishButton]}
           onPress={handleFinish}
-          disabled={completeSession.isPending}
+          disabled={isSaving || completeSession.isPending}
           accessibilityRole="button"
           testID="set-logging-finish"
         >
@@ -386,14 +298,6 @@ function buildStyles(colors: ThemeColors) {
       color: colors.textMuted,
       fontSize: 12,
     },
-    loggedList: {
-      gap: 2,
-    },
-    loggedRow: {
-      color: colors.accentDark,
-      fontSize: 12,
-      fontWeight: '600',
-    },
     setRow: {
       marginTop: spacing.xs,
     },
@@ -404,10 +308,8 @@ function buildStyles(colors: ThemeColors) {
     field: {
       flex: 1,
     },
-    buttonsRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
+    addSetButton: {
+      alignSelf: 'flex-start',
       marginTop: spacing.xs,
     },
     rowButtonText: {
