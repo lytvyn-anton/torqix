@@ -115,23 +115,14 @@ export async function startWorkoutSession(
   };
 }
 
-// Persists every set entered during a workout in one insert, called once at "Finish
-// workout" rather than per set as it's typed — nothing is written to set_logs until the
-// user finishes (or cancels, discarding it).
-export async function logSets(sessionId: string, inputs: LogSetInput[]): Promise<SetLog[]> {
-  if (inputs.length === 0) return [];
+// Everything already saved for this session, across all exercises — how the Set Logging
+// screen repopulates its fields with what was entered the last time this (still "planned")
+// workout was open, and what the continuous autosave below diffs against.
+export async function getSetLogs(sessionId: string): Promise<SetLog[]> {
   const { data, error } = await supabase
     .from('set_logs')
-    .insert(
-      inputs.map((input) => ({
-        workout_session_id: sessionId,
-        exercise_id: input.exerciseId,
-        set_index: input.setIndex,
-        reps_done: input.repsDone,
-        weight: input.weight,
-      })),
-    )
-    .select('id, exercise_id, set_index, reps_done, weight');
+    .select('id, exercise_id, set_index, reps_done, weight')
+    .eq('workout_session_id', sessionId);
   if (error) throw error;
   return data.map((row) => ({
     id: row.id,
@@ -142,6 +133,51 @@ export async function logSets(sessionId: string, inputs: LogSetInput[]): Promise
   }));
 }
 
+// Keeps a session's set_logs in sync with exactly what's currently entered, called
+// continuously (debounced) as the user types and once more on "Finish workout" — never a
+// one-time submit. `allExerciseIds` must list every exercise the day could have sets for
+// (not just the ones present in `inputs`) so an exercise that was filled in and then
+// cleared back to blank gets its now-stale rows trimmed too, not just left behind.
+export async function syncSetLogs(
+  sessionId: string,
+  allExerciseIds: string[],
+  inputs: LogSetInput[],
+): Promise<void> {
+  if (inputs.length > 0) {
+    const { error } = await supabase.from('set_logs').upsert(
+      inputs.map((input) => ({
+        workout_session_id: sessionId,
+        exercise_id: input.exerciseId,
+        set_index: input.setIndex,
+        reps_done: input.repsDone,
+        weight: input.weight,
+      })),
+      { onConflict: 'workout_session_id,exercise_id,set_index' },
+    );
+    if (error) throw error;
+  }
+
+  const countByExercise = new Map<string, number>(allExerciseIds.map((id) => [id, 0]));
+  for (const input of inputs) {
+    countByExercise.set(input.exerciseId, (countByExercise.get(input.exerciseId) ?? 0) + 1);
+  }
+  // Trims run in parallel, not one at a time — this fires on every debounced autosave, so a
+  // day with several exercises shouldn't pay for a sequential round trip per exercise.
+  const results = await Promise.all(
+    Array.from(countByExercise, ([exerciseId, count]) =>
+      supabase
+        .from('set_logs')
+        .delete()
+        .eq('workout_session_id', sessionId)
+        .eq('exercise_id', exerciseId)
+        .gte('set_index', count),
+    ),
+  );
+  for (const { error } of results) {
+    if (error) throw error;
+  }
+}
+
 export async function completeSession(sessionId: string): Promise<void> {
   const { error } = await supabase
     .from('workout_sessions')
@@ -150,7 +186,16 @@ export async function completeSession(sessionId: string): Promise<void> {
   if (error) throw error;
 }
 
+// Also deletes any sets the continuous autosave already wrote for this (never finished)
+// session — the cancel confirmation promises entered sets won't be saved, so cancelling has
+// to actually discard them, not just leave the session as "skipped" with its rows intact.
 export async function cancelSession(sessionId: string): Promise<void> {
+  const { error: deleteError } = await supabase
+    .from('set_logs')
+    .delete()
+    .eq('workout_session_id', sessionId);
+  if (deleteError) throw deleteError;
+
   const { error } = await supabase
     .from('workout_sessions')
     .update({ status: 'skipped' })

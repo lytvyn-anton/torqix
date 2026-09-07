@@ -7,11 +7,12 @@ import {
   getProgramDayExercises,
   getProgramDays,
   getSession,
+  getSetLogs,
   getTodaySession,
   getWorkoutHistory,
   getWorkoutSummary,
-  logSets,
   startWorkoutSession,
+  syncSetLogs,
 } from './workoutsApi';
 
 jest.mock('../../../shared/api/supabase', () => ({
@@ -197,43 +198,80 @@ describe('getSession', () => {
   });
 });
 
-describe('logSets', () => {
-  it('bulk-inserts every set log for the session and returns them, mapped', async () => {
-    const select = jest.fn().mockResolvedValue({
-      data: [
-        { id: 'log-1', exercise_id: 'ex-1', set_index: 0, reps_done: 10, weight: 40 },
-        { id: 'log-2', exercise_id: 'ex-1', set_index: 1, reps_done: 8, weight: 42.5 },
-      ],
+describe('getSetLogs', () => {
+  it('queries every set_log for the session, mapped', async () => {
+    const eq = jest.fn().mockResolvedValue({
+      data: [{ id: 'log-1', exercise_id: 'ex-1', set_index: 0, reps_done: 10, weight: 40 }],
       error: null,
     });
-    const insert = jest.fn().mockReturnValue({ select });
-    mockedFrom.mockReturnValue({ insert } as never);
+    const select = jest.fn().mockReturnValue({ eq });
+    mockedFrom.mockReturnValue({ select } as never);
 
-    const result = await logSets('session-1', [
-      { exerciseId: 'ex-1', setIndex: 0, repsDone: 10, weight: 40 },
-      { exerciseId: 'ex-1', setIndex: 1, repsDone: 8, weight: 42.5 },
-    ]);
+    const result = await getSetLogs('session-1');
 
-    expect(insert).toHaveBeenCalledWith([
-      {
-        workout_session_id: 'session-1',
-        exercise_id: 'ex-1',
-        set_index: 0,
-        reps_done: 10,
-        weight: 40,
-      },
-      {
-        workout_session_id: 'session-1',
-        exercise_id: 'ex-1',
-        set_index: 1,
-        reps_done: 8,
-        weight: 42.5,
-      },
-    ]);
+    expect(eq).toHaveBeenCalledWith('workout_session_id', 'session-1');
     expect(result).toEqual([
       { id: 'log-1', exerciseId: 'ex-1', setIndex: 0, repsDone: 10, weight: 40 },
-      { id: 'log-2', exerciseId: 'ex-1', setIndex: 1, repsDone: 8, weight: 42.5 },
     ]);
+  });
+});
+
+describe('syncSetLogs', () => {
+  function mockChain() {
+    const upsert = jest.fn().mockResolvedValue({ error: null });
+    const gte = jest.fn().mockResolvedValue({ error: null });
+    const eqExercise = jest.fn().mockReturnValue({ gte });
+    const eqSession = jest.fn().mockReturnValue({ eq: eqExercise });
+    const deleteFn = jest.fn().mockReturnValue({ eq: eqSession });
+    mockedFrom.mockReturnValue({ upsert, delete: deleteFn } as never);
+    return { upsert, deleteFn, eqSession, eqExercise, gte };
+  }
+
+  it('upserts every entered set keyed by session+exercise+slot', async () => {
+    const { upsert, eqExercise, gte } = mockChain();
+
+    await syncSetLogs(
+      'session-1',
+      ['ex-1'],
+      [
+        { exerciseId: 'ex-1', setIndex: 0, repsDone: 10, weight: 40 },
+        { exerciseId: 'ex-1', setIndex: 1, repsDone: 8, weight: 42.5 },
+      ],
+    );
+
+    expect(upsert).toHaveBeenCalledWith(
+      [
+        {
+          workout_session_id: 'session-1',
+          exercise_id: 'ex-1',
+          set_index: 0,
+          reps_done: 10,
+          weight: 40,
+        },
+        {
+          workout_session_id: 'session-1',
+          exercise_id: 'ex-1',
+          set_index: 1,
+          reps_done: 8,
+          weight: 42.5,
+        },
+      ],
+      { onConflict: 'workout_session_id,exercise_id,set_index' },
+    );
+    // Trims anything beyond the 2 sets just entered for ex-1 (a set that was cleared back
+    // to blank after having been saved before).
+    expect(eqExercise).toHaveBeenCalledWith('exercise_id', 'ex-1');
+    expect(gte).toHaveBeenCalledWith('set_index', 2);
+  });
+
+  it('trims every set for an exercise that dropped to zero entries, without upserting', async () => {
+    const { upsert, eqExercise, gte } = mockChain();
+
+    await syncSetLogs('session-1', ['ex-1'], []);
+
+    expect(upsert).not.toHaveBeenCalled();
+    expect(eqExercise).toHaveBeenCalledWith('exercise_id', 'ex-1');
+    expect(gte).toHaveBeenCalledWith('set_index', 0);
   });
 });
 
@@ -261,15 +299,35 @@ describe('completeSession', () => {
 });
 
 describe('cancelSession', () => {
-  it('updates the session to skipped', async () => {
-    const eq = jest.fn().mockResolvedValue({ error: null });
-    const update = jest.fn().mockReturnValue({ eq });
-    mockedFrom.mockReturnValue({ update } as never);
+  it('deletes any autosaved sets for the session, then marks it skipped', async () => {
+    const eqDelete = jest.fn().mockResolvedValue({ error: null });
+    const deleteFn = jest.fn().mockReturnValue({ eq: eqDelete });
+
+    const eqUpdate = jest.fn().mockResolvedValue({ error: null });
+    const update = jest.fn().mockReturnValue({ eq: eqUpdate });
+
+    mockedFrom.mockImplementation(
+      (table: string) => (table === 'set_logs' ? { delete: deleteFn } : { update }) as never,
+    );
 
     await cancelSession('session-1');
 
+    expect(eqDelete).toHaveBeenCalledWith('workout_session_id', 'session-1');
     expect(update).toHaveBeenCalledWith({ status: 'skipped' });
-    expect(eq).toHaveBeenCalledWith('id', 'session-1');
+    expect(eqUpdate).toHaveBeenCalledWith('id', 'session-1');
+  });
+
+  it('throws without updating the session if deleting its sets fails', async () => {
+    const error = new Error('rls denied');
+    const eqDelete = jest.fn().mockResolvedValue({ error });
+    const update = jest.fn();
+    mockedFrom.mockImplementation(
+      (table: string) =>
+        (table === 'set_logs' ? { delete: () => ({ eq: eqDelete }) } : { update }) as never,
+    );
+
+    await expect(cancelSession('session-1')).rejects.toBe(error);
+    expect(update).not.toHaveBeenCalled();
   });
 });
 

@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
@@ -15,10 +15,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { CancelWorkoutSheet } from '../components/CancelWorkoutSheet';
 import { useCancelSession } from '../hooks/useCancelSession';
 import { useCompleteSession } from '../hooks/useCompleteSession';
-import { useLogSets } from '../hooks/useLogSets';
 import { useProgramDayExercises } from '../hooks/useProgramDayExercises';
+import { useSetLogs } from '../hooks/useSetLogs';
+import { useSyncSetLogs } from '../hooks/useSyncSetLogs';
 import { useWorkoutSession } from '../hooks/useWorkoutSession';
-import type { LogSetInput, ProgramDayExerciseDetail } from '../types';
+import type { LogSetInput, ProgramDayExerciseDetail, SetLog } from '../types';
 import { useFormStyles } from '../../../shared/theme/formStyles';
 import { useTheme } from '../../../shared/theme/ThemeProvider';
 import { spacing, type ThemeColors } from '../../../shared/theme/theme';
@@ -33,12 +34,59 @@ type Props = {
 
 type Draft = { reps: string; weight: string };
 
-function defaultDraft(exercise: ProgramDayExerciseDetail): Draft {
-  return {
-    reps: exercise.reps != null ? String(exercise.reps) : '',
-    weight: exercise.targetWeight != null ? String(exercise.targetWeight) : '',
-  };
+// set_index is assigned from a running per-exercise counter (not a row's raw array
+// position) so a blank skipped row can't leave a numbering gap, and two program-day-exercise
+// cards sharing the same underlying exercise can't both start at 0 and collide.
+function buildInputs(
+  exercises: ProgramDayExerciseDetail[],
+  drafts: Record<string, Draft[]>,
+): LogSetInput[] {
+  const inputs: LogSetInput[] = [];
+  const nextSetIndexByExercise: Record<string, number> = {};
+  for (const exercise of exercises) {
+    (drafts[exercise.id] ?? []).forEach((row) => {
+      const repsDone = toNullableInt(row.reps);
+      const weight = toNullableFloat(row.weight);
+      if (repsDone == null && weight == null) return;
+      const setIndex = nextSetIndexByExercise[exercise.exerciseId] ?? 0;
+      nextSetIndexByExercise[exercise.exerciseId] = setIndex + 1;
+      inputs.push({ exerciseId: exercise.exerciseId, setIndex, repsDone, weight });
+    });
+  }
+  return inputs;
 }
+
+// The inverse of buildInputs: reconstructs draft rows from what's already saved for this
+// session. If the same exercise appears on two program-day-exercise cards, its saved sets
+// (indistinguishable by card — set_logs only knows the exercise, not the card) all land on
+// whichever card comes first here.
+function computeInitialDrafts(
+  exercises: ProgramDayExerciseDetail[],
+  setLogs: SetLog[],
+): Record<string, Draft[]> {
+  const savedByExercise = new Map<string, Draft[]>();
+  for (const log of [...setLogs].sort((a, b) => a.setIndex - b.setIndex)) {
+    const list = savedByExercise.get(log.exerciseId) ?? [];
+    list.push({
+      reps: log.repsDone != null ? String(log.repsDone) : '',
+      weight: log.weight != null ? String(log.weight) : '',
+    });
+    savedByExercise.set(log.exerciseId, list);
+  }
+
+  const claimed = new Set<string>();
+  const drafts: Record<string, Draft[]> = {};
+  for (const exercise of exercises) {
+    if (claimed.has(exercise.exerciseId)) continue;
+    const saved = savedByExercise.get(exercise.exerciseId);
+    if (!saved || saved.length === 0) continue;
+    claimed.add(exercise.exerciseId);
+    drafts[exercise.id] = saved;
+  }
+  return drafts;
+}
+
+export const AUTOSAVE_DELAY_MS = 600;
 
 export function SetLoggingScreen({ userId, sessionId, onCancelled, onCompleted }: Props) {
   const { t } = useTranslation();
@@ -49,18 +97,74 @@ export function SetLoggingScreen({ userId, sessionId, onCancelled, onCompleted }
 
   const sessionQuery = useWorkoutSession(sessionId);
   const exercisesQuery = useProgramDayExercises(sessionQuery.data?.programDayId);
-  const logSets = useLogSets(sessionId);
+  const setLogsQuery = useSetLogs(sessionId);
+  const syncSetLogs = useSyncSetLogs(sessionId);
   const completeSession = useCompleteSession(userId);
   const cancelSession = useCancelSession(userId);
 
-  // Nothing is written to set_logs while the workout is in progress — each exercise's sets
-  // live here as plain draft rows (added via "+ Add set") and are only persisted in bulk
-  // when the user taps "Finish workout". An exercise the user never touched has no entry
-  // here at all, so it contributes nothing to save.
+  // Each exercise's sets live here as plain draft rows (added via "+ Add set"); every edit
+  // autosaves to set_logs in the background (debounced) rather than requiring an explicit
+  // save step, so progress is captured continuously and reopening this same (still
+  // "planned") session later shows what was already entered.
   const [drafts, setDrafts] = useState<Record<string, Draft[]>>({});
   const [cancelSheetVisible, setCancelSheetVisible] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveFailed, setSaveFailed] = useState(false);
+
+  const draftsRef = useRef(drafts);
+  useEffect(() => {
+    draftsRef.current = drafts;
+  }, [drafts]);
+
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Serializes autosave/finish calls to at most one in flight at a time — a rejected sync
+  // is swallowed here (each caller handles its own error) so one failure can't permanently
+  // block every sync queued after it.
+  const syncChainRef = useRef<Promise<void>>(Promise.resolve());
+  const runQueuedSync = (currentDrafts: Record<string, Draft[]>): Promise<void> => {
+    const run = syncChainRef.current
+      .catch(() => {})
+      .then(() =>
+        syncSetLogs.mutateAsync({
+          allExerciseIds: (exercisesQuery.data ?? []).map((exercise) => exercise.exerciseId),
+          inputs: buildInputs(exercisesQuery.data ?? [], currentDrafts),
+        }),
+      );
+    syncChainRef.current = run;
+    return run;
+  };
+
+  const scheduleAutosave = (nextDrafts: Record<string, Draft[]>) => {
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(() => {
+      runQueuedSync(draftsRef.current)
+        .then(() => setSaveFailed(false))
+        .catch(() => setSaveFailed(true));
+    }, AUTOSAVE_DELAY_MS);
+  };
+
+  // A pending autosave must not fire after the user has navigated away — it would write to
+  // a session they believe they already left.
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    };
+  }, []);
+
+  // Repopulates fields from whatever was already saved for this session, once, the first
+  // render where both queries have data — set during render rather than in an Effect (React's
+  // documented pattern for initializing state from data that just became available: it
+  // re-renders immediately with the new state before anything is painted, instead of
+  // committing a wasted empty-fields frame first). An exercise with no saved sets gets no
+  // rows (same as an exercise the user hasn't touched yet this time). If the same exercise
+  // appears on two program-day-exercise cards in one day, its saved sets can't be told apart
+  // by card (they share one exercise_id in set_logs) — they're all reattached to whichever
+  // card comes first, a rare edge case rather than something worth a schema change for.
+  const [isInitialized, setIsInitialized] = useState(false);
+  if (!isInitialized && exercisesQuery.data && setLogsQuery.data) {
+    setIsInitialized(true);
+    setDrafts(computeInitialDrafts(exercisesQuery.data, setLogsQuery.data));
+  }
 
   const setDraftField = (
     exercise: ProgramDayExerciseDetail,
@@ -68,55 +172,44 @@ export function SetLoggingScreen({ userId, sessionId, onCancelled, onCompleted }
     field: keyof Draft,
     value: string,
   ) => {
-    setDrafts((current) => {
-      const rows = current[exercise.id] ?? [];
-      return {
-        ...current,
-        [exercise.id]: rows.map((row, i) => (i === rowIndex ? { ...row, [field]: value } : row)),
-      };
-    });
+    const rows = drafts[exercise.id] ?? [];
+    const nextDrafts = {
+      ...drafts,
+      [exercise.id]: rows.map((row, i) => (i === rowIndex ? { ...row, [field]: value } : row)),
+    };
+    setDrafts(nextDrafts);
+    scheduleAutosave(nextDrafts);
   };
 
+  // A new row starts blank, not prefilled with the exercise's target — until the user
+  // actually types something, "+ Add set" alone shouldn't autosave a set nobody confirmed
+  // they did. The target is only shown as a placeholder hint (below).
   const handleAddSetRow = (exercise: ProgramDayExerciseDetail) => {
-    setDrafts((current) => {
-      const rows = current[exercise.id] ?? [];
-      return { ...current, [exercise.id]: [...rows, defaultDraft(exercise)] };
-    });
+    const rows = drafts[exercise.id] ?? [];
+    const nextDrafts = { ...drafts, [exercise.id]: [...rows, { reps: '', weight: '' }] };
+    setDrafts(nextDrafts);
   };
 
-  const handleConfirmCancel = () => {
+  // Clearing the pending timer alone isn't enough — an autosave that already fired is
+  // mid-flight in syncChainRef, independent of cancelSession's own delete+update. Awaiting
+  // it first guarantees that write has landed (or failed) before cancelSession deletes
+  // set_logs, so a slow autosave response can't land after the delete and resurrect a row
+  // for a session that's now "skipped".
+  const handleConfirmCancel = async () => {
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    await syncChainRef.current.catch(() => {});
     cancelSession.mutate(sessionId, { onSuccess: () => onCancelled() });
   };
 
-  // Persists every set entered across all exercises in one bulk insert, then marks the
-  // session done — only once the insert succeeds, so a failed save doesn't complete a
-  // session with missing data. set_index is assigned from a running per-exercise counter
-  // (not the row's raw array position) so a blank skipped row can't leave a gap, and two
-  // program-day-exercise cards sharing the same underlying exercise can't both start
-  // numbering from 0 and collide. Drafts are cleared as soon as the insert succeeds — before
-  // completeSession runs — so if completing the session then fails, retrying "Finish" only
-  // retries that (nothing left in `inputs`) instead of re-inserting the same sets.
+  // Everything is already autosaved by the time this runs — Finish just needs to flush any
+  // pending/in-flight sync (so the very latest edit is guaranteed to have landed even if the
+  // debounce hadn't fired yet) before marking the session done.
   const handleFinish = async () => {
-    setSaveFailed(false);
     setIsSaving(true);
-    const inputs: LogSetInput[] = [];
-    const nextSetIndexByExercise: Record<string, number> = {};
-    for (const exercise of exercisesQuery.data ?? []) {
-      (drafts[exercise.id] ?? []).forEach((row) => {
-        const repsDone = toNullableInt(row.reps);
-        const weight = toNullableFloat(row.weight);
-        if (repsDone == null && weight == null) return;
-        const setIndex = nextSetIndexByExercise[exercise.exerciseId] ?? 0;
-        nextSetIndexByExercise[exercise.exerciseId] = setIndex + 1;
-        inputs.push({ exerciseId: exercise.exerciseId, setIndex, repsDone, weight });
-      });
-    }
-
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     try {
-      if (inputs.length > 0) {
-        await logSets.mutateAsync(inputs);
-        setDrafts({});
-      }
+      await runQueuedSync(drafts);
+      setSaveFailed(false);
       await completeSession.mutateAsync(sessionId);
       onCompleted(sessionId);
     } catch {
@@ -126,7 +219,7 @@ export function SetLoggingScreen({ userId, sessionId, onCancelled, onCompleted }
     }
   };
 
-  if (sessionQuery.isLoading || exercisesQuery.isLoading) {
+  if (sessionQuery.isLoading || exercisesQuery.isLoading || setLogsQuery.isLoading) {
     return (
       <View style={styles.centered} testID="set-logging-loading">
         <ActivityIndicator color={colors.accent} />
@@ -134,7 +227,7 @@ export function SetLoggingScreen({ userId, sessionId, onCancelled, onCompleted }
     );
   }
 
-  if (sessionQuery.isError || exercisesQuery.isError) {
+  if (sessionQuery.isError || exercisesQuery.isError || setLogsQuery.isError) {
     return (
       <View style={styles.centered} testID="set-logging-load-error">
         <Text style={formStyles.error}>{t('workouts.loadError')}</Text>
@@ -187,7 +280,9 @@ export function SetLoggingScreen({ userId, sessionId, onCancelled, onCompleted }
                     style={[formStyles.input, styles.field]}
                     value={draft.reps}
                     onChangeText={(value) => setDraftField(exercise, rowIndex, 'reps', value)}
-                    placeholder={t('workouts.repsPlaceholder')}
+                    placeholder={
+                      exercise.reps != null ? String(exercise.reps) : t('workouts.repsPlaceholder')
+                    }
                     placeholderTextColor={colors.textFaint}
                     keyboardType="number-pad"
                     testID={`set-logging-${exercise.id}-reps-${rowIndex}`}
@@ -196,7 +291,11 @@ export function SetLoggingScreen({ userId, sessionId, onCancelled, onCompleted }
                     style={[formStyles.input, styles.field]}
                     value={draft.weight}
                     onChangeText={(value) => setDraftField(exercise, rowIndex, 'weight', value)}
-                    placeholder={t('workouts.weightPlaceholder')}
+                    placeholder={
+                      exercise.targetWeight != null
+                        ? String(exercise.targetWeight)
+                        : t('workouts.weightPlaceholder')
+                    }
                     placeholderTextColor={colors.textFaint}
                     keyboardType="decimal-pad"
                     testID={`set-logging-${exercise.id}-weight-${rowIndex}`}
