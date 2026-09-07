@@ -88,6 +88,7 @@
     "emptyCta": "Create Your First Program",
     "statusArchived": "Archived",
     "newProgram": "New",
+    "generateHeaderLabel": "AI",
     "createTitle": "New program",
     "generateTitle": "Generate with AI",
     "generateBody": "We'll build a program from your profile's goal, level, equipment, and schedule.",

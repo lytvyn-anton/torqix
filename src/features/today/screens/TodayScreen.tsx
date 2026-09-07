@@ -14,10 +14,11 @@ import { fonts, spacing, type ThemeColors } from '../../../shared/theme/theme';
 type Props = {
   userId: string;
   onCreateProgram: () => void;
+  onGenerateProgram: () => void;
   onOpenWorkout: (sessionId: string) => void;
 };
 
-export function TodayScreen({ userId, onCreateProgram, onOpenWorkout }: Props) {
+export function TodayScreen({ userId, onCreateProgram, onGenerateProgram, onOpenWorkout }: Props) {
   const { t } = useTranslation();
   const activeProgramQuery = useActiveProgram(userId);
   const todaySessionQuery = useTodaySession(userId);
@@ -58,11 +59,18 @@ export function TodayScreen({ userId, onCreateProgram, onOpenWorkout }: Props) {
         <Text style={styles.emptyBody}>{t('today.emptyBody')}</Text>
         <TouchableOpacity
           style={[formStyles.primaryButton, styles.emptyCta]}
+          onPress={onGenerateProgram}
+          testID="today-generate-program"
+          accessibilityRole="button"
+        >
+          <Text style={formStyles.primaryButtonText}>{t('programs.generateSubmit')}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
           onPress={onCreateProgram}
           testID="today-create-program"
           accessibilityRole="button"
         >
-          <Text style={formStyles.primaryButtonText}>{t('today.emptyCta')}</Text>
+          <Text style={styles.emptyManualLink}>{t('today.emptyCta')}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -170,6 +178,12 @@ function buildStyles(colors: ThemeColors) {
     emptyCta: {
       paddingVertical: spacing.md,
       paddingHorizontal: spacing.xl,
+      marginTop: spacing.sm,
+    },
+    emptyManualLink: {
+      color: colors.accentDark,
+      fontWeight: '600',
+      fontSize: 13,
       marginTop: spacing.sm,
     },
     activeProgramLabel: {
