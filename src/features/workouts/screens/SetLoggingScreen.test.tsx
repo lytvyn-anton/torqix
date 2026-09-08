@@ -372,6 +372,83 @@ describe('SetLoggingScreen', () => {
     expect(syncSetLogsMutate).not.toHaveBeenCalled();
   });
 
+  it('flushes a pending autosave on unmount instead of discarding it', async () => {
+    const { unmount } = await render(
+      <SetLoggingScreen
+        userId="user-1"
+        sessionId="session-1"
+        onCancelled={jest.fn()}
+        onCompleted={jest.fn()}
+      />,
+    );
+
+    await fireEvent.press(screen.getByTestId('set-logging-pde-1-add-set'));
+    await fireEvent.changeText(screen.getByTestId('set-logging-pde-1-reps-0'), '10');
+
+    // Leave well before the debounce would have fired on its own — e.g. the user typed a
+    // value then immediately switched tabs. Without a flush, this edit would otherwise never
+    // reach the server: reopening the session later would show no trace it was ever typed.
+    expect(syncSetLogsMutate).not.toHaveBeenCalled();
+    unmount();
+
+    await waitFor(() =>
+      expect(syncSetLogsMutate).toHaveBeenCalledWith({
+        allExerciseIds: ['ex-1'],
+        inputs: [{ exerciseId: 'ex-1', setIndex: 0, repsDone: 10, weight: null }],
+      }),
+    );
+  });
+
+  it('does not re-flush on unmount once finish has already cleared the pending debounce', async () => {
+    const { unmount } = await render(
+      <SetLoggingScreen
+        userId="user-1"
+        sessionId="session-1"
+        onCancelled={jest.fn()}
+        onCompleted={jest.fn()}
+      />,
+    );
+
+    await fireEvent.press(screen.getByTestId('set-logging-pde-1-add-set'));
+    await fireEvent.changeText(screen.getByTestId('set-logging-pde-1-reps-0'), '10');
+    await fireEvent.press(screen.getByTestId('set-logging-finish'));
+
+    await waitFor(() => expect(syncSetLogsMutate).toHaveBeenCalledTimes(1));
+
+    // The pending debounce was already cleared and flushed by Finish — unmounting afterward
+    // (leaving the completion screen) must not fire syncSetLogs a second time.
+    unmount();
+    await new Promise((resolve) => setTimeout(resolve, AUTOSAVE_DELAY_MS + 50));
+    expect(syncSetLogsMutate).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not re-flush (and resurrect a deleted set) on unmount once cancel has already cleared the pending debounce', async () => {
+    const onCancelled = jest.fn();
+    const { unmount } = await render(
+      <SetLoggingScreen
+        userId="user-1"
+        sessionId="session-1"
+        onCancelled={onCancelled}
+        onCompleted={jest.fn()}
+      />,
+    );
+
+    await fireEvent.press(screen.getByTestId('set-logging-pde-1-add-set'));
+    await fireEvent.changeText(screen.getByTestId('set-logging-pde-1-reps-0'), '10');
+
+    await fireEvent.press(screen.getByTestId('set-logging-cancel'));
+    await fireEvent.press(screen.getByTestId('cancel-workout-confirm'));
+    await waitFor(() => expect(cancelMutate).toHaveBeenCalled());
+    cancelMutate.mock.calls[0][1].onSuccess();
+
+    // handleConfirmCancel awaited the sync chain and cleared the timer before cancelSession
+    // ran — unmounting afterward (as onCancelled's navigation would) must not re-run
+    // syncSetLogs and resurrect the row cancelSession just deleted.
+    unmount();
+    await new Promise((resolve) => setTimeout(resolve, AUTOSAVE_DELAY_MS + 50));
+    expect(syncSetLogsMutate).not.toHaveBeenCalled();
+  });
+
   it('cancels a pending autosave instead of writing it when the workout is cancelled', async () => {
     const onCancelled = jest.fn();
     await render(
@@ -518,6 +595,37 @@ describe('SetLoggingScreen', () => {
 
     await waitFor(() => expect(completeMutate).toHaveBeenCalledWith('session-1'));
     expect(onCompleted).toHaveBeenCalledWith('session-1');
+  });
+
+  it('shows a "Saving…" indicator while an autosave is in flight, hiding it once it settles', async () => {
+    let resolveSave: () => void = () => {};
+    syncSetLogsMutate.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveSave = resolve;
+        }),
+    );
+
+    await render(
+      <SetLoggingScreen
+        userId="user-1"
+        sessionId="session-1"
+        onCancelled={jest.fn()}
+        onCompleted={jest.fn()}
+      />,
+    );
+
+    expect(screen.queryByTestId('set-logging-saving')).toBeNull();
+
+    await fireEvent.press(screen.getByTestId('set-logging-pde-1-add-set'));
+    await fireEvent.changeText(screen.getByTestId('set-logging-pde-1-reps-0'), '10');
+    await new Promise((resolve) => setTimeout(resolve, AUTOSAVE_DELAY_MS + 50));
+
+    expect(screen.getByTestId('set-logging-saving')).toBeTruthy();
+
+    resolveSave();
+
+    await waitFor(() => expect(screen.queryByTestId('set-logging-saving')).toBeNull());
   });
 
   it('disables the finish button while saving is in flight', async () => {

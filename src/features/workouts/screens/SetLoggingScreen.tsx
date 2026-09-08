@@ -169,8 +169,19 @@ export function SetLoggingScreen({ userId, sessionId, onCancelled, onCompleted }
   // is swallowed here (each caller handles its own error) so one failure can't permanently
   // block every sync queued after it.
   const syncChainRef = useRef<Promise<void>>(Promise.resolve());
+  // Surfaced as a small "Saving…" indicator — without it, a save that's still in flight when
+  // the user tries to leave looks identical to one that already finished, so there's no cue
+  // that leaving right this moment is any different from leaving a second later. Tracked as a
+  // count, not a plain boolean: if a second sync gets queued behind one already in flight (via
+  // syncChainRef), the indicator must stay visible for the whole stretch — a boolean reset by
+  // the first call's .finally would flip it off the instant that one settles, even though the
+  // second is guaranteed to run right after.
+  const pendingSyncCountRef = useRef(0);
+  const [isSyncing, setIsSyncing] = useState(false);
   const runQueuedSync = (currentDrafts: Record<string, Draft[]>): Promise<void> => {
     const exercises = exercisesRef.current ?? [];
+    pendingSyncCountRef.current += 1;
+    if (isMountedRef.current) setIsSyncing(true);
     const run = syncChainRef.current
       .catch(() => {})
       .then(() =>
@@ -178,7 +189,11 @@ export function SetLoggingScreen({ userId, sessionId, onCancelled, onCompleted }
           allExerciseIds: exercises.map((exercise) => exercise.exerciseId),
           inputs: buildInputs(exercises, currentDrafts),
         }),
-      );
+      )
+      .finally(() => {
+        pendingSyncCountRef.current -= 1;
+        if (isMountedRef.current) setIsSyncing(pendingSyncCountRef.current > 0);
+      });
     syncChainRef.current = run;
     return run;
   };
@@ -186,6 +201,7 @@ export function SetLoggingScreen({ userId, sessionId, onCancelled, onCompleted }
   const scheduleAutosave = (nextDrafts: Record<string, Draft[]>) => {
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     debounceTimerRef.current = setTimeout(() => {
+      debounceTimerRef.current = null;
       runQueuedSync(draftsRef.current)
         .then(() => {
           if (isMountedRef.current) setSaveFailed(false);
@@ -196,15 +212,28 @@ export function SetLoggingScreen({ userId, sessionId, onCancelled, onCompleted }
     }, AUTOSAVE_DELAY_MS);
   };
 
-  // A pending autosave must not fire after the user has navigated away — it would write to
-  // a session they believe they already left. The in-flight promise itself is left running
-  // (its result still matters for data correctness), but isMountedRef stops its resolution
-  // from calling setState on an unmounted screen.
+  // Leaving the screen (back button, switching tabs, closing the app) is not a save action
+  // the way Finish or Cancel are — there's no explicit moment to flush a pending edit, so
+  // this has to do it on unmount instead. Merely clearing the timer here would silently
+  // drop whatever was typed in the last ~600ms before leaving: the debounce would never
+  // fire, so that edit would never reach the server at all, and reopening the session would
+  // show it as if it had never been entered. The request itself is fired and left running
+  // after unmount (it isn't tied to the component's lifecycle) — only the resulting setState
+  // is guarded, via isMountedRef.
+  // Deliberately omits runQueuedSync from the deps array: it's redefined every render, so
+  // listing it would re-fire this cleanup (and flush mid-typing) on every render instead of
+  // only on actual unmount. It reads its real data from refs at call time regardless of
+  // which render's closure gets invoked, so using a possibly-stale one here is safe.
   useEffect(() => {
     return () => {
       isMountedRef.current = false;
-      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
+        runQueuedSync(draftsRef.current).catch(() => {});
+      }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Repopulates fields from whatever was already saved for this session, once, the first
@@ -273,7 +302,10 @@ export function SetLoggingScreen({ userId, sessionId, onCancelled, onCompleted }
     if (isCancellingRef.current) return;
     isCancellingRef.current = true;
     setIsCancelling(true);
-    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
     await syncChainRef.current.catch(() => {});
     cancelSession.mutate(sessionId, {
       onSuccess: () => onCancelled(),
@@ -289,7 +321,10 @@ export function SetLoggingScreen({ userId, sessionId, onCancelled, onCompleted }
   // debounce hadn't fired yet) before marking the session done.
   const handleFinish = async () => {
     setIsSaving(true);
-    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
     try {
       await runQueuedSync(drafts);
       setSaveFailed(false);
@@ -335,6 +370,12 @@ export function SetLoggingScreen({ userId, sessionId, onCancelled, onCompleted }
           <Text style={styles.cancelText}>{t('workouts.cancel')}</Text>
         </TouchableOpacity>
       </View>
+
+      {isSyncing && (
+        <Text style={styles.savingIndicator} testID="set-logging-saving">
+          {t('workouts.saving')}
+        </Text>
+      )}
 
       <ScrollView contentContainerStyle={styles.container}>
         {(exercisesQuery.data ?? []).map((exercise) => {
@@ -460,6 +501,12 @@ function buildStyles(colors: ThemeColors) {
     cancelText: {
       color: colors.error,
       fontWeight: '600',
+    },
+    savingIndicator: {
+      color: colors.textMuted,
+      fontSize: 12,
+      textAlign: 'center',
+      paddingBottom: spacing.sm,
     },
     container: {
       padding: spacing.xl,

@@ -150,6 +150,7 @@
     "finish": "Finish workout",
     "loadError": "Couldn't load this workout.",
     "addSet": "+ Add set",
+    "saving": "Saving…",
     "finishError": "Couldn't finish the workout. Try again.",
     "cancelError": "Couldn't cancel the workout. Try again.",
     "repsPlaceholder": "Reps",
