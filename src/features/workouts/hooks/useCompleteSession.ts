@@ -14,6 +14,10 @@ export function useCompleteSession(userId: string | undefined) {
       // keep showing stale data (e.g. missing an exercise, or an outdated last-session count)
       // after finishing a workout.
       queryClient.invalidateQueries({ queryKey: ['loggedExercises', userId] });
+      // Same reasoning for the Set Logging screen's "last time you did this" placeholder
+      // hints: finishing this session is exactly what changes what "last performed" means
+      // for its exercises, including on some other program day that happens to share one.
+      queryClient.invalidateQueries({ queryKey: ['lastPerformedSets'] });
     },
   });
 }

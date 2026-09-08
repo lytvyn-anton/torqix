@@ -1,9 +1,10 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
 
 import '../../../shared/i18n';
 import { renderWithProviders as render } from '../../../shared/testing/renderWithProviders';
 import { useCancelSession } from '../hooks/useCancelSession';
 import { useCompleteSession } from '../hooks/useCompleteSession';
+import { useLastPerformedSets } from '../hooks/useLastPerformedSets';
 import { useProgramDayExercises } from '../hooks/useProgramDayExercises';
 import { useSetLogs } from '../hooks/useSetLogs';
 import { useSyncSetLogs } from '../hooks/useSyncSetLogs';
@@ -13,6 +14,7 @@ import { AUTOSAVE_DELAY_MS, SetLoggingScreen } from './SetLoggingScreen';
 jest.mock('../hooks/useWorkoutSession', () => ({ useWorkoutSession: jest.fn() }));
 jest.mock('../hooks/useProgramDayExercises', () => ({ useProgramDayExercises: jest.fn() }));
 jest.mock('../hooks/useSetLogs', () => ({ useSetLogs: jest.fn() }));
+jest.mock('../hooks/useLastPerformedSets', () => ({ useLastPerformedSets: jest.fn() }));
 jest.mock('../hooks/useSyncSetLogs', () => ({ useSyncSetLogs: jest.fn() }));
 jest.mock('../hooks/useCompleteSession', () => ({ useCompleteSession: jest.fn() }));
 jest.mock('../hooks/useCancelSession', () => ({ useCancelSession: jest.fn() }));
@@ -20,6 +22,7 @@ jest.mock('../hooks/useCancelSession', () => ({ useCancelSession: jest.fn() }));
 const mockedUseWorkoutSession = jest.mocked(useWorkoutSession);
 const mockedUseProgramDayExercises = jest.mocked(useProgramDayExercises);
 const mockedUseSetLogs = jest.mocked(useSetLogs);
+const mockedUseLastPerformedSets = jest.mocked(useLastPerformedSets);
 const mockedUseSyncSetLogs = jest.mocked(useSyncSetLogs);
 const mockedUseCompleteSession = jest.mocked(useCompleteSession);
 const mockedUseCancelSession = jest.mocked(useCancelSession);
@@ -62,6 +65,11 @@ describe('SetLoggingScreen', () => {
       isLoading: false,
       isError: false,
     } as unknown as ReturnType<typeof useSetLogs>);
+    mockedUseLastPerformedSets.mockReturnValue({
+      data: [],
+      isLoading: false,
+      isError: false,
+    } as unknown as ReturnType<typeof useLastPerformedSets>);
     syncSetLogsMutate = jest.fn().mockResolvedValue(undefined);
     mockedUseSyncSetLogs.mockReturnValue({
       mutateAsync: syncSetLogsMutate,
@@ -156,6 +164,66 @@ describe('SetLoggingScreen', () => {
     expect(screen.getByTestId('set-logging-pde-1-weight-0').props.value).toBe('15');
     expect(screen.getByTestId('set-logging-pde-1-reps-1').props.value).toBe('8');
     expect(screen.getByTestId('set-logging-pde-1-weight-1').props.value).toBe('20');
+  });
+
+  it("pre-fills blank rows with last time's performance as a placeholder hint", async () => {
+    mockedUseLastPerformedSets.mockReturnValue({
+      data: [
+        { exerciseId: 'ex-1', setIndex: 0, repsDone: 10, weight: 45 },
+        { exerciseId: 'ex-1', setIndex: 1, repsDone: 8, weight: 47.5 },
+      ],
+      isLoading: false,
+      isError: false,
+    } as unknown as ReturnType<typeof useLastPerformedSets>);
+
+    await render(
+      <SetLoggingScreen
+        userId="user-1"
+        sessionId="session-1"
+        onCancelled={jest.fn()}
+        onCompleted={jest.fn()}
+      />,
+    );
+
+    // Two blank rows appear automatically (matching last time's set count), each hinting
+    // what was actually done last time rather than the program's generic target.
+    expect(screen.getByTestId('set-logging-pde-1-reps-0').props.value).toBe('');
+    expect(screen.getByTestId('set-logging-pde-1-reps-0').props.placeholder).toBe('10');
+    expect(screen.getByTestId('set-logging-pde-1-weight-0').props.placeholder).toBe('45');
+    expect(screen.getByTestId('set-logging-pde-1-reps-1').props.placeholder).toBe('8');
+    expect(screen.getByTestId('set-logging-pde-1-weight-1').props.placeholder).toBe('47.5');
+
+    expect(syncSetLogsMutate).not.toHaveBeenCalled();
+  });
+
+  it('does not override sets already saved this session with last-performed hints', async () => {
+    mockedUseSetLogs.mockReturnValue({
+      data: [{ id: 'log-1', exerciseId: 'ex-1', setIndex: 0, repsDone: 10, weight: 15 }],
+      isLoading: false,
+      isError: false,
+    } as unknown as ReturnType<typeof useSetLogs>);
+    mockedUseLastPerformedSets.mockReturnValue({
+      data: [
+        { exerciseId: 'ex-1', setIndex: 0, repsDone: 99, weight: 99 },
+        { exerciseId: 'ex-1', setIndex: 1, repsDone: 99, weight: 99 },
+      ],
+      isLoading: false,
+      isError: false,
+    } as unknown as ReturnType<typeof useLastPerformedSets>);
+
+    await render(
+      <SetLoggingScreen
+        userId="user-1"
+        sessionId="session-1"
+        onCancelled={jest.fn()}
+        onCompleted={jest.fn()}
+      />,
+    );
+
+    // Real data for this session wins — only the one row actually saved this session shows,
+    // not the two-row shape from last time's hint.
+    expect(screen.getByTestId('set-logging-pde-1-reps-0').props.value).toBe('10');
+    expect(screen.queryByTestId('set-logging-pde-1-reps-1')).toBeNull();
   });
 
   it('autosaves an edited set in the background, without pressing finish', async () => {
@@ -369,6 +437,46 @@ describe('SetLoggingScreen', () => {
         expect.objectContaining({ onSuccess: expect.any(Function) }),
       ),
     );
+  });
+
+  it('ignores a second confirm tap while the first is still waiting out an in-flight autosave', async () => {
+    let resolveSync: () => void = () => {};
+    syncSetLogsMutate.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveSync = resolve;
+        }),
+    );
+
+    await render(
+      <SetLoggingScreen
+        userId="user-1"
+        sessionId="session-1"
+        onCancelled={jest.fn()}
+        onCompleted={jest.fn()}
+      />,
+    );
+
+    await fireEvent.press(screen.getByTestId('set-logging-pde-1-add-set'));
+    await fireEvent.changeText(screen.getByTestId('set-logging-pde-1-reps-0'), '10');
+    await new Promise((resolve) => setTimeout(resolve, AUTOSAVE_DELAY_MS + 50));
+
+    await fireEvent.press(screen.getByTestId('set-logging-cancel'));
+    // Two taps land in the window where cancelSession.isPending is still false (the mutate
+    // call hasn't started yet — handleConfirmCancel is still awaiting the in-flight sync).
+    // Fired together inside one act() so React doesn't treat them as two separately-tracked,
+    // overlapping act scopes — the first tap's handler is still mid-flight (pending on
+    // resolveSync below) when the second one dispatches.
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('cancel-workout-confirm'));
+      fireEvent.press(screen.getByTestId('cancel-workout-confirm'));
+    });
+
+    resolveSync();
+
+    await waitFor(() => expect(cancelMutate).toHaveBeenCalledTimes(1));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(cancelMutate).toHaveBeenCalledTimes(1);
   });
 
   it('shows the cancel sheet and cancels the session on confirm', async () => {

@@ -133,6 +133,47 @@ export async function getSetLogs(sessionId: string): Promise<SetLog[]> {
   }));
 }
 
+// The sets performed the last time each given exercise was actually finished (its most
+// recent "done" session only, not merged across every past session) — lets a brand-new
+// workout show what was done last time as a placeholder hint per row, instead of an empty
+// slate, without changing the target-based defaults that ship with the program itself.
+export async function getLastPerformedSets(exerciseIds: string[]): Promise<LogSetInput[]> {
+  if (exerciseIds.length === 0) return [];
+  const { data, error } = await supabase
+    .from('set_logs')
+    .select(
+      'exercise_id, set_index, reps_done, weight, workout_session_id, workout_sessions!inner(scheduled_date, status)',
+    )
+    .in('exercise_id', exerciseIds)
+    .eq('workout_sessions.status', 'done')
+    .order('scheduled_date', { foreignTable: 'workout_sessions', ascending: false })
+    .order('set_index', { ascending: true });
+  if (error) throw error;
+
+  // Keyed by session id, not just "most recent so far": two sessions can legitimately share
+  // a scheduled_date (see getLoggedExercises above), so only rows from the very first
+  // session id seen for each exercise are kept — anything from an older session is dropped.
+  const lastSessionIdByExercise = new Map<string, string>();
+  const result: LogSetInput[] = [];
+  for (const row of data) {
+    const exerciseId = row.exercise_id;
+    const sessionId = row.workout_session_id;
+    const knownSessionId = lastSessionIdByExercise.get(exerciseId);
+    if (knownSessionId === undefined) {
+      lastSessionIdByExercise.set(exerciseId, sessionId);
+    } else if (knownSessionId !== sessionId) {
+      continue;
+    }
+    result.push({
+      exerciseId,
+      setIndex: row.set_index,
+      repsDone: row.reps_done,
+      weight: row.weight,
+    });
+  }
+  return result;
+}
+
 // Keeps a session's set_logs in sync with exactly what's currently entered, called
 // continuously (debounced) as the user types and once more on "Finish workout" — never a
 // one-time submit. `allExerciseIds` must list every exercise the day could have sets for

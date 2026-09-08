@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { CancelWorkoutSheet } from '../components/CancelWorkoutSheet';
 import { useCancelSession } from '../hooks/useCancelSession';
 import { useCompleteSession } from '../hooks/useCompleteSession';
+import { useLastPerformedSets } from '../hooks/useLastPerformedSets';
 import { useProgramDayExercises } from '../hooks/useProgramDayExercises';
 import { useSetLogs } from '../hooks/useSetLogs';
 import { useSyncSetLogs } from '../hooks/useSyncSetLogs';
@@ -86,6 +87,36 @@ function computeInitialDrafts(
   return drafts;
 }
 
+// What was actually done the last time each exercise was performed (in some earlier,
+// finished session) — shown as a per-row placeholder hint so a fresh workout doesn't feel
+// like a blank slate, without being real data itself (same "the same exercise on two cards
+// can't be told apart" caveat as computeInitialDrafts applies here too).
+function computeLastPerformedHints(
+  exercises: ProgramDayExerciseDetail[],
+  lastPerformed: LogSetInput[],
+): Record<string, Draft[]> {
+  const byExercise = new Map<string, Draft[]>();
+  for (const entry of [...lastPerformed].sort((a, b) => a.setIndex - b.setIndex)) {
+    const list = byExercise.get(entry.exerciseId) ?? [];
+    list.push({
+      reps: entry.repsDone != null ? String(entry.repsDone) : '',
+      weight: entry.weight != null ? String(entry.weight) : '',
+    });
+    byExercise.set(entry.exerciseId, list);
+  }
+
+  const claimed = new Set<string>();
+  const hints: Record<string, Draft[]> = {};
+  for (const exercise of exercises) {
+    if (claimed.has(exercise.exerciseId)) continue;
+    const hint = byExercise.get(exercise.exerciseId);
+    if (!hint || hint.length === 0) continue;
+    claimed.add(exercise.exerciseId);
+    hints[exercise.id] = hint;
+  }
+  return hints;
+}
+
 export const AUTOSAVE_DELAY_MS = 600;
 
 export function SetLoggingScreen({ userId, sessionId, onCancelled, onCompleted }: Props) {
@@ -98,6 +129,11 @@ export function SetLoggingScreen({ userId, sessionId, onCancelled, onCompleted }
   const sessionQuery = useWorkoutSession(sessionId);
   const exercisesQuery = useProgramDayExercises(sessionQuery.data?.programDayId);
   const setLogsQuery = useSetLogs(sessionId);
+  const exerciseIds = useMemo(
+    () => Array.from(new Set((exercisesQuery.data ?? []).map((exercise) => exercise.exerciseId))),
+    [exercisesQuery.data],
+  );
+  const lastPerformedQuery = useLastPerformedSets(exerciseIds);
   const syncSetLogs = useSyncSetLogs(sessionId);
   const completeSession = useCompleteSession(userId);
   const cancelSession = useCancelSession(userId);
@@ -107,6 +143,7 @@ export function SetLoggingScreen({ userId, sessionId, onCancelled, onCompleted }
   // save step, so progress is captured continuously and reopening this same (still
   // "planned") session later shows what was already entered.
   const [drafts, setDrafts] = useState<Record<string, Draft[]>>({});
+  const [lastPerformedHints, setLastPerformedHints] = useState<Record<string, Draft[]>>({});
   const [cancelSheetVisible, setCancelSheetVisible] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveFailed, setSaveFailed] = useState(false);
@@ -116,18 +153,30 @@ export function SetLoggingScreen({ userId, sessionId, onCancelled, onCompleted }
     draftsRef.current = drafts;
   }, [drafts]);
 
+  // scheduleAutosave's setTimeout callback fires later, on whatever render happened to
+  // schedule it — without this ref it would close over that render's exercisesQuery.data,
+  // which could be stale by the time it actually runs (e.g. a background refetch resolved
+  // in between) and mis-number set_index or skip trimming a newly-added exercise.
+  const exercisesRef = useRef(exercisesQuery.data);
+  useEffect(() => {
+    exercisesRef.current = exercisesQuery.data;
+  }, [exercisesQuery.data]);
+
+  const isMountedRef = useRef(true);
+
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Serializes autosave/finish calls to at most one in flight at a time — a rejected sync
   // is swallowed here (each caller handles its own error) so one failure can't permanently
   // block every sync queued after it.
   const syncChainRef = useRef<Promise<void>>(Promise.resolve());
   const runQueuedSync = (currentDrafts: Record<string, Draft[]>): Promise<void> => {
+    const exercises = exercisesRef.current ?? [];
     const run = syncChainRef.current
       .catch(() => {})
       .then(() =>
         syncSetLogs.mutateAsync({
-          allExerciseIds: (exercisesQuery.data ?? []).map((exercise) => exercise.exerciseId),
-          inputs: buildInputs(exercisesQuery.data ?? [], currentDrafts),
+          allExerciseIds: exercises.map((exercise) => exercise.exerciseId),
+          inputs: buildInputs(exercises, currentDrafts),
         }),
       );
     syncChainRef.current = run;
@@ -138,32 +187,51 @@ export function SetLoggingScreen({ userId, sessionId, onCancelled, onCompleted }
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     debounceTimerRef.current = setTimeout(() => {
       runQueuedSync(draftsRef.current)
-        .then(() => setSaveFailed(false))
-        .catch(() => setSaveFailed(true));
+        .then(() => {
+          if (isMountedRef.current) setSaveFailed(false);
+        })
+        .catch(() => {
+          if (isMountedRef.current) setSaveFailed(true);
+        });
     }, AUTOSAVE_DELAY_MS);
   };
 
   // A pending autosave must not fire after the user has navigated away — it would write to
-  // a session they believe they already left.
+  // a session they believe they already left. The in-flight promise itself is left running
+  // (its result still matters for data correctness), but isMountedRef stops its resolution
+  // from calling setState on an unmounted screen.
   useEffect(() => {
     return () => {
+      isMountedRef.current = false;
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     };
   }, []);
 
   // Repopulates fields from whatever was already saved for this session, once, the first
-  // render where both queries have data — set during render rather than in an Effect (React's
-  // documented pattern for initializing state from data that just became available: it
-  // re-renders immediately with the new state before anything is painted, instead of
-  // committing a wasted empty-fields frame first). An exercise with no saved sets gets no
-  // rows (same as an exercise the user hasn't touched yet this time). If the same exercise
-  // appears on two program-day-exercise cards in one day, its saved sets can't be told apart
-  // by card (they share one exercise_id in set_logs) — they're all reattached to whichever
-  // card comes first, a rare edge case rather than something worth a schema change for.
+  // render where all three queries have data — set during render rather than in an Effect
+  // (React's documented pattern for initializing state from data that just became available:
+  // it re-renders immediately with the new state before anything is painted, instead of
+  // committing a wasted empty-fields frame first). An exercise with no saved sets this
+  // session gets no rows — unless it has a last-performed hint, in which case it gets that
+  // many blank rows so the placeholder hints below are visible right away (still nothing to
+  // autosave until the user actually types into one). If the same exercise appears on two
+  // program-day-exercise cards in one day, neither its saved sets nor its last-performed sets
+  // can be told apart by card (set_logs only knows the exercise, not the card) — both land on
+  // whichever card comes first, a rare edge case rather than something worth a schema change.
   const [isInitialized, setIsInitialized] = useState(false);
-  if (!isInitialized && exercisesQuery.data && setLogsQuery.data) {
+  if (!isInitialized && exercisesQuery.data && setLogsQuery.data && !lastPerformedQuery.isLoading) {
     setIsInitialized(true);
-    setDrafts(computeInitialDrafts(exercisesQuery.data, setLogsQuery.data));
+    const savedDrafts = computeInitialDrafts(exercisesQuery.data, setLogsQuery.data);
+    const hints = computeLastPerformedHints(exercisesQuery.data, lastPerformedQuery.data ?? []);
+    const mergedDrafts = { ...savedDrafts };
+    for (const exercise of exercisesQuery.data) {
+      if (mergedDrafts[exercise.id]) continue;
+      const hint = hints[exercise.id];
+      if (!hint) continue;
+      mergedDrafts[exercise.id] = hint.map(() => ({ reps: '', weight: '' }));
+    }
+    setDrafts(mergedDrafts);
+    setLastPerformedHints(hints);
   }
 
   const setDraftField = (
@@ -194,11 +262,26 @@ export function SetLoggingScreen({ userId, sessionId, onCancelled, onCompleted }
   // mid-flight in syncChainRef, independent of cancelSession's own delete+update. Awaiting
   // it first guarantees that write has landed (or failed) before cancelSession deletes
   // set_logs, so a slow autosave response can't land after the delete and resurrect a row
-  // for a session that's now "skipped".
+  // for a session that's now "skipped". cancelSession.isPending only reflects its own network
+  // call, which hasn't started yet during that await, so a second tap in that window would
+  // otherwise fire cancelSession.mutate (and its onCancelled navigation) twice — guarded via
+  // a ref, not the isCancelling state, since two taps landing before React re-renders would
+  // both close over the same stale (pre-update) state value.
+  const isCancellingRef = useRef(false);
+  const [isCancelling, setIsCancelling] = useState(false);
   const handleConfirmCancel = async () => {
+    if (isCancellingRef.current) return;
+    isCancellingRef.current = true;
+    setIsCancelling(true);
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     await syncChainRef.current.catch(() => {});
-    cancelSession.mutate(sessionId, { onSuccess: () => onCancelled() });
+    cancelSession.mutate(sessionId, {
+      onSuccess: () => onCancelled(),
+      onError: () => {
+        isCancellingRef.current = false;
+        setIsCancelling(false);
+      },
+    });
   };
 
   // Everything is already autosaved by the time this runs — Finish just needs to flush any
@@ -219,7 +302,12 @@ export function SetLoggingScreen({ userId, sessionId, onCancelled, onCompleted }
     }
   };
 
-  if (sessionQuery.isLoading || exercisesQuery.isLoading || setLogsQuery.isLoading) {
+  if (
+    sessionQuery.isLoading ||
+    exercisesQuery.isLoading ||
+    setLogsQuery.isLoading ||
+    lastPerformedQuery.isLoading
+  ) {
     return (
       <View style={styles.centered} testID="set-logging-loading">
         <ActivityIndicator color={colors.accent} />
@@ -274,34 +362,39 @@ export function SetLoggingScreen({ userId, sessionId, onCancelled, onCompleted }
                 </Text>
               )}
 
-              {rows.map((draft, rowIndex) => (
-                <View key={rowIndex} style={[styles.fieldsRow, styles.setRow]}>
-                  <TextInput
-                    style={[formStyles.input, styles.field]}
-                    value={draft.reps}
-                    onChangeText={(value) => setDraftField(exercise, rowIndex, 'reps', value)}
-                    placeholder={
-                      exercise.reps != null ? String(exercise.reps) : t('workouts.repsPlaceholder')
-                    }
-                    placeholderTextColor={colors.textFaint}
-                    keyboardType="number-pad"
-                    testID={`set-logging-${exercise.id}-reps-${rowIndex}`}
-                  />
-                  <TextInput
-                    style={[formStyles.input, styles.field]}
-                    value={draft.weight}
-                    onChangeText={(value) => setDraftField(exercise, rowIndex, 'weight', value)}
-                    placeholder={
-                      exercise.targetWeight != null
-                        ? String(exercise.targetWeight)
-                        : t('workouts.weightPlaceholder')
-                    }
-                    placeholderTextColor={colors.textFaint}
-                    keyboardType="decimal-pad"
-                    testID={`set-logging-${exercise.id}-weight-${rowIndex}`}
-                  />
-                </View>
-              ))}
+              {rows.map((draft, rowIndex) => {
+                const hint = lastPerformedHints[exercise.id]?.[rowIndex];
+                const repsPlaceholder =
+                  hint?.reps ||
+                  (exercise.reps != null ? String(exercise.reps) : t('workouts.repsPlaceholder'));
+                const weightPlaceholder =
+                  hint?.weight ||
+                  (exercise.targetWeight != null
+                    ? String(exercise.targetWeight)
+                    : t('workouts.weightPlaceholder'));
+                return (
+                  <View key={rowIndex} style={[styles.fieldsRow, styles.setRow]}>
+                    <TextInput
+                      style={[formStyles.input, styles.field]}
+                      value={draft.reps}
+                      onChangeText={(value) => setDraftField(exercise, rowIndex, 'reps', value)}
+                      placeholder={repsPlaceholder}
+                      placeholderTextColor={colors.textFaint}
+                      keyboardType="number-pad"
+                      testID={`set-logging-${exercise.id}-reps-${rowIndex}`}
+                    />
+                    <TextInput
+                      style={[formStyles.input, styles.field]}
+                      value={draft.weight}
+                      onChangeText={(value) => setDraftField(exercise, rowIndex, 'weight', value)}
+                      placeholder={weightPlaceholder}
+                      placeholderTextColor={colors.textFaint}
+                      keyboardType="decimal-pad"
+                      testID={`set-logging-${exercise.id}-weight-${rowIndex}`}
+                    />
+                  </View>
+                );
+              })}
 
               <TouchableOpacity
                 onPress={() => handleAddSetRow(exercise)}
@@ -335,7 +428,7 @@ export function SetLoggingScreen({ userId, sessionId, onCancelled, onCompleted }
       <CancelWorkoutSheet
         visible={cancelSheetVisible}
         isError={cancelSession.isError}
-        isPending={cancelSession.isPending}
+        isPending={isCancelling || cancelSession.isPending}
         onConfirm={handleConfirmCancel}
         onKeepGoing={() => setCancelSheetVisible(false)}
       />

@@ -3,6 +3,7 @@ import {
   cancelSession,
   completeSession,
   getExerciseProgress,
+  getLastPerformedSets,
   getLoggedExercises,
   getProgramDayExercises,
   getProgramDays,
@@ -212,6 +213,71 @@ describe('getSetLogs', () => {
     expect(eq).toHaveBeenCalledWith('workout_session_id', 'session-1');
     expect(result).toEqual([
       { id: 'log-1', exerciseId: 'ex-1', setIndex: 0, repsDone: 10, weight: 40 },
+    ]);
+  });
+});
+
+describe('getLastPerformedSets', () => {
+  it('returns nothing without querying when given no exercise ids', async () => {
+    const callsBefore = mockedFrom.mock.calls.length;
+
+    const result = await getLastPerformedSets([]);
+
+    expect(mockedFrom).toHaveBeenCalledTimes(callsBefore);
+    expect(result).toEqual([]);
+  });
+
+  it("keeps only each exercise's most recent session, dropping rows from older ones", async () => {
+    const orderSetIndex = jest.fn().mockResolvedValue({
+      data: [
+        // ex-1's two most-recent-first sessions: session-2 (kept) then session-1 (dropped).
+        {
+          exercise_id: 'ex-1',
+          set_index: 0,
+          reps_done: 10,
+          weight: 45,
+          workout_session_id: 'session-2',
+        },
+        {
+          exercise_id: 'ex-1',
+          set_index: 1,
+          reps_done: 8,
+          weight: 47.5,
+          workout_session_id: 'session-2',
+        },
+        {
+          exercise_id: 'ex-1',
+          set_index: 0,
+          reps_done: 12,
+          weight: 40,
+          workout_session_id: 'session-1',
+        },
+        // ex-2 has just the one session.
+        {
+          exercise_id: 'ex-2',
+          set_index: 0,
+          reps_done: 15,
+          weight: null,
+          workout_session_id: 'session-3',
+        },
+      ],
+      error: null,
+    });
+    const orderDate = jest.fn().mockReturnValue({ order: orderSetIndex });
+    const eqStatus = jest.fn().mockReturnValue({ order: orderDate });
+    const inExercise = jest.fn().mockReturnValue({ eq: eqStatus });
+    const select = jest.fn().mockReturnValue({ in: inExercise });
+    mockedFrom.mockReturnValue({ select } as never);
+
+    const result = await getLastPerformedSets(['ex-1', 'ex-2']);
+
+    expect(mockedFrom).toHaveBeenCalledWith('set_logs');
+    expect(inExercise).toHaveBeenCalledWith('exercise_id', ['ex-1', 'ex-2']);
+    expect(eqStatus).toHaveBeenCalledWith('workout_sessions.status', 'done');
+    expect(result).toEqual([
+      { exerciseId: 'ex-1', setIndex: 0, repsDone: 10, weight: 45 },
+      { exerciseId: 'ex-1', setIndex: 1, repsDone: 8, weight: 47.5 },
+      { exerciseId: 'ex-2', setIndex: 0, repsDone: 15, weight: null },
     ]);
   });
 });
