@@ -162,7 +162,10 @@
     "cancelSheetKeepGoing": "Keep going",
     "completeTitle": "Workout complete!",
     "completeBody": "{{count}} sets logged for {{day}}.",
-    "completeDone": "Done"
+    "completeDone": "Done",
+    "programDeletedTitle": "Program deleted",
+    "programDeletedBody": "The program this workout belonged to was deleted, so there's nothing left to log here.",
+    "programDeletedCta": "Back to Today"
   },
   "history": {
     "title": "History",

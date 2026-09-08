@@ -60,6 +60,19 @@ function programDayName(row: { program_days: { name: string } | null }): string 
   return row.program_days?.name ?? '';
 }
 
+// Marks a "planned" session skipped without touching its set_logs (unlike cancelSession,
+// which deletes them) — used below to close out a session whose program day was deleted out
+// from under it, where discarding already-logged sets would be an unrelated data loss. Also
+// exported for the Set Logging screen's own "program deleted" dead end, which needs the same
+// log-preserving skip rather than cancelSession's normal discard-on-cancel behavior.
+export async function abandonOrphanedSession(sessionId: string): Promise<void> {
+  const { error } = await supabase
+    .from('workout_sessions')
+    .update({ status: 'skipped' })
+    .eq('id', sessionId);
+  if (error) throw error;
+}
+
 // A workout left "planned" (started, not yet finished or cancelled) earlier today — lets
 // the Today screen offer "Continue" instead of re-showing the day picker.
 export async function getTodaySession(userId: string): Promise<WorkoutSession | null> {
@@ -74,6 +87,14 @@ export async function getTodaySession(userId: string): Promise<WorkoutSession | 
     .maybeSingle();
   if (error) throw error;
   if (!data) return null;
+  // The whole program (or just this day) was deleted while the session was still "planned" —
+  // program_day_id was SET NULL by the FK, so there's no day left to resume. Auto-skip it here
+  // so Today falls back to the normal day picker instead of offering a "Continue" that leads to
+  // an empty logging screen.
+  if (data.program_day_id === null) {
+    await abandonOrphanedSession(data.id);
+    return null;
+  }
   return {
     id: data.id,
     programDayId: data.program_day_id,

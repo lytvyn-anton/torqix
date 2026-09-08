@@ -162,7 +162,10 @@
     "cancelSheetKeepGoing": "Продовжити",
     "completeTitle": "Тренування завершено!",
     "completeBody": "Записано підходів: {{count}} — {{day}}.",
-    "completeDone": "Готово"
+    "completeDone": "Готово",
+    "programDeletedTitle": "Програму видалено",
+    "programDeletedBody": "Програму, до якої належало це тренування, видалено — записувати тут більше нічого.",
+    "programDeletedCta": "До сьогодні"
   },
   "history": {
     "title": "Історія",

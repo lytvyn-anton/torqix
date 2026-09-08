@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CancelWorkoutSheet } from '../components/CancelWorkoutSheet';
+import { useAbandonOrphanedSession } from '../hooks/useAbandonOrphanedSession';
 import { useCancelSession } from '../hooks/useCancelSession';
 import { useCompleteSession } from '../hooks/useCompleteSession';
 import { useLastPerformedSets } from '../hooks/useLastPerformedSets';
@@ -145,6 +146,7 @@ export function SetLoggingScreen({ userId, sessionId, onCancelled, onCompleted }
   const syncSetLogs = useSyncSetLogs(sessionId);
   const completeSession = useCompleteSession(userId);
   const cancelSession = useCancelSession(userId);
+  const abandonOrphanedSession = useAbandonOrphanedSession(userId);
 
   // Each exercise's sets live here as plain draft rows — nothing is sent to the server as
   // you type. Everything currently in `drafts` is saved in one request when the user taps
@@ -282,6 +284,48 @@ export function SetLoggingScreen({ userId, sessionId, onCancelled, onCompleted }
     return (
       <View style={styles.centered} testID="set-logging-load-error">
         <Text style={formStyles.error}>{t('workouts.loadError')}</Text>
+      </View>
+    );
+  }
+
+  // The session's program was deleted out from under it after this screen was already loading
+  // (or reached directly, e.g. a stale link) — program_day_id was SET NULL, so there's no day
+  // or exercises left to render. getTodaySession auto-skips this before Today ever offers a
+  // "Continue" button for it, but this is still reachable directly, so show an explicit dead
+  // end instead of the blank card list that useProgramDayExercises (disabled without a day id)
+  // would otherwise leave behind.
+  if (sessionQuery.data && sessionQuery.data.programDayId === null) {
+    return (
+      <View style={styles.centered} testID="set-logging-program-deleted">
+        <Text style={formStyles.screenTitle}>{t('workouts.programDeletedTitle')}</Text>
+        <Text style={styles.target}>{t('workouts.programDeletedBody')}</Text>
+        {abandonOrphanedSession.isError && (
+          <Text style={formStyles.error} testID="set-logging-program-deleted-error">
+            {t('workouts.cancelError')}
+          </Text>
+        )}
+        <TouchableOpacity
+          style={[formStyles.primaryButton, styles.finishButton]}
+          onPress={() =>
+            // Not cancelSession: this state isn't the user choosing to discard a workout, it's
+            // an external cause (the program got deleted) closing it out — any sets already
+            // logged before that happened should survive, same as the auto-skip on Today.
+            abandonOrphanedSession.mutate(sessionId, {
+              onSuccess: () => {
+                // No exercises were ever rendered on this dead-end screen, so there are no
+                // drafts to flush — mark handled so the unmount effect doesn't fire a pointless
+                // sync against a session that's already skipped.
+                isHandledRef.current = true;
+                onCancelled();
+              },
+            })
+          }
+          disabled={abandonOrphanedSession.isPending}
+          accessibilityRole="button"
+          testID="set-logging-program-deleted-cancel"
+        >
+          <Text style={formStyles.primaryButtonText}>{t('workouts.programDeletedCta')}</Text>
+        </TouchableOpacity>
       </View>
     );
   }

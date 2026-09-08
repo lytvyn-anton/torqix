@@ -132,6 +132,34 @@ describe('getTodaySession', () => {
 
     expect(await getTodaySession('user-1')).toBeNull();
   });
+
+  it("auto-skips and returns null when the session's program day was deleted", async () => {
+    // program_day_id is nullable (ON DELETE SET NULL) — the program was deleted while this
+    // session was still "planned", leaving it with no day left to resume.
+    const maybeSingle = jest.fn().mockResolvedValue({
+      data: { id: 'session-1', program_day_id: null, status: 'planned', program_days: null },
+      error: null,
+    });
+    const limit = jest.fn().mockReturnValue({ maybeSingle });
+    const order = jest.fn().mockReturnValue({ limit });
+    const eqStatus = jest.fn().mockReturnValue({ order });
+    const eqDate = jest.fn().mockReturnValue({ eq: eqStatus });
+    const eqUser = jest.fn().mockReturnValue({ eq: eqDate });
+    const select = jest.fn().mockReturnValue({ eq: eqUser });
+
+    const updateEq = jest.fn().mockResolvedValue({ error: null });
+    const update = jest.fn().mockReturnValue({ eq: updateEq });
+
+    mockedFrom.mockImplementation(
+      (table: string) => (table === 'workout_sessions' ? { select, update } : { select }) as never,
+    );
+
+    const result = await getTodaySession('user-1');
+
+    expect(update).toHaveBeenCalledWith({ status: 'skipped' });
+    expect(updateEq).toHaveBeenCalledWith('id', 'session-1');
+    expect(result).toBeNull();
+  });
 });
 
 describe('startWorkoutSession', () => {
