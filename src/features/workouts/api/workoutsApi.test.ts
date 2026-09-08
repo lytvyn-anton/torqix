@@ -3,6 +3,7 @@ import {
   cancelSession,
   completeSession,
   getExerciseProgress,
+  getLastPerformedSets,
   getLoggedExercises,
   getProgramDayExercises,
   getProgramDays,
@@ -11,8 +12,8 @@ import {
   getTodaySession,
   getWorkoutHistory,
   getWorkoutSummary,
-  logSet,
   startWorkoutSession,
+  syncSetLogs,
 } from './workoutsApi';
 
 jest.mock('../../../shared/api/supabase', () => ({
@@ -199,12 +200,11 @@ describe('getSession', () => {
 });
 
 describe('getSetLogs', () => {
-  it('queries set_logs for the session, ordered, mapped', async () => {
-    const order = jest.fn().mockResolvedValue({
+  it('queries every set_log for the session, mapped', async () => {
+    const eq = jest.fn().mockResolvedValue({
       data: [{ id: 'log-1', exercise_id: 'ex-1', set_index: 0, reps_done: 10, weight: 40 }],
       error: null,
     });
-    const eq = jest.fn().mockReturnValue({ order });
     const select = jest.fn().mockReturnValue({ eq });
     mockedFrom.mockReturnValue({ select } as never);
 
@@ -217,37 +217,133 @@ describe('getSetLogs', () => {
   });
 });
 
-describe('logSet', () => {
-  it('inserts a set log and returns it, mapped', async () => {
-    const single = jest.fn().mockResolvedValue({
-      data: { id: 'log-1', exercise_id: 'ex-1', set_index: 0, reps_done: 10, weight: 40 },
+describe('getLastPerformedSets', () => {
+  it('returns nothing without querying when given no exercise ids', async () => {
+    const callsBefore = mockedFrom.mock.calls.length;
+
+    const result = await getLastPerformedSets([]);
+
+    expect(mockedFrom).toHaveBeenCalledTimes(callsBefore);
+    expect(result).toEqual([]);
+  });
+
+  it("keeps only each exercise's most recent session, dropping rows from older ones", async () => {
+    const orderSetIndex = jest.fn().mockResolvedValue({
+      data: [
+        // ex-1's two most-recent-first sessions: session-2 (kept) then session-1 (dropped).
+        {
+          exercise_id: 'ex-1',
+          set_index: 0,
+          reps_done: 10,
+          weight: 45,
+          workout_session_id: 'session-2',
+        },
+        {
+          exercise_id: 'ex-1',
+          set_index: 1,
+          reps_done: 8,
+          weight: 47.5,
+          workout_session_id: 'session-2',
+        },
+        {
+          exercise_id: 'ex-1',
+          set_index: 0,
+          reps_done: 12,
+          weight: 40,
+          workout_session_id: 'session-1',
+        },
+        // ex-2 has just the one session.
+        {
+          exercise_id: 'ex-2',
+          set_index: 0,
+          reps_done: 15,
+          weight: null,
+          workout_session_id: 'session-3',
+        },
+      ],
       error: null,
     });
-    const select = jest.fn().mockReturnValue({ single });
-    const insert = jest.fn().mockReturnValue({ select });
-    mockedFrom.mockReturnValue({ insert } as never);
+    const orderCompletedAt = jest.fn().mockReturnValue({ order: orderSetIndex });
+    const orderDate = jest.fn().mockReturnValue({ order: orderCompletedAt });
+    const eqStatus = jest.fn().mockReturnValue({ order: orderDate });
+    const inExercise = jest.fn().mockReturnValue({ eq: eqStatus });
+    const select = jest.fn().mockReturnValue({ in: inExercise });
+    mockedFrom.mockReturnValue({ select } as never);
 
-    const result = await logSet('session-1', {
-      exerciseId: 'ex-1',
-      setIndex: 0,
-      repsDone: 10,
-      weight: 40,
-    });
+    const result = await getLastPerformedSets(['ex-1', 'ex-2']);
 
-    expect(insert).toHaveBeenCalledWith({
-      workout_session_id: 'session-1',
-      exercise_id: 'ex-1',
-      set_index: 0,
-      reps_done: 10,
-      weight: 40,
+    expect(mockedFrom).toHaveBeenCalledWith('set_logs');
+    expect(inExercise).toHaveBeenCalledWith('exercise_id', ['ex-1', 'ex-2']);
+    expect(eqStatus).toHaveBeenCalledWith('workout_sessions.status', 'done');
+    // Tiebreaker for two "done" sessions sharing a scheduled_date.
+    expect(orderCompletedAt).toHaveBeenCalledWith('completed_at', {
+      foreignTable: 'workout_sessions',
+      ascending: false,
     });
-    expect(result).toEqual({
-      id: 'log-1',
-      exerciseId: 'ex-1',
-      setIndex: 0,
-      repsDone: 10,
-      weight: 40,
-    });
+    expect(result).toEqual([
+      { exerciseId: 'ex-1', setIndex: 0, repsDone: 10, weight: 45 },
+      { exerciseId: 'ex-1', setIndex: 1, repsDone: 8, weight: 47.5 },
+      { exerciseId: 'ex-2', setIndex: 0, repsDone: 15, weight: null },
+    ]);
+  });
+});
+
+describe('syncSetLogs', () => {
+  function mockChain() {
+    const upsert = jest.fn().mockResolvedValue({ error: null });
+    const gte = jest.fn().mockResolvedValue({ error: null });
+    const eqExercise = jest.fn().mockReturnValue({ gte });
+    const eqSession = jest.fn().mockReturnValue({ eq: eqExercise });
+    const deleteFn = jest.fn().mockReturnValue({ eq: eqSession });
+    mockedFrom.mockReturnValue({ upsert, delete: deleteFn } as never);
+    return { upsert, deleteFn, eqSession, eqExercise, gte };
+  }
+
+  it('upserts every entered set keyed by session+exercise+slot', async () => {
+    const { upsert, eqExercise, gte } = mockChain();
+
+    await syncSetLogs(
+      'session-1',
+      ['ex-1'],
+      [
+        { exerciseId: 'ex-1', setIndex: 0, repsDone: 10, weight: 40 },
+        { exerciseId: 'ex-1', setIndex: 1, repsDone: 8, weight: 42.5 },
+      ],
+    );
+
+    expect(upsert).toHaveBeenCalledWith(
+      [
+        {
+          workout_session_id: 'session-1',
+          exercise_id: 'ex-1',
+          set_index: 0,
+          reps_done: 10,
+          weight: 40,
+        },
+        {
+          workout_session_id: 'session-1',
+          exercise_id: 'ex-1',
+          set_index: 1,
+          reps_done: 8,
+          weight: 42.5,
+        },
+      ],
+      { onConflict: 'workout_session_id,exercise_id,set_index' },
+    );
+    // Trims anything beyond the 2 sets just entered for ex-1 (a set that was cleared back
+    // to blank after having been saved before).
+    expect(eqExercise).toHaveBeenCalledWith('exercise_id', 'ex-1');
+    expect(gte).toHaveBeenCalledWith('set_index', 2);
+  });
+
+  it('trims every set for an exercise that dropped to zero entries, without upserting', async () => {
+    const { upsert, eqExercise, gte } = mockChain();
+
+    await syncSetLogs('session-1', ['ex-1'], []);
+
+    expect(upsert).not.toHaveBeenCalled();
+    expect(eqExercise).toHaveBeenCalledWith('exercise_id', 'ex-1');
+    expect(gte).toHaveBeenCalledWith('set_index', 0);
   });
 });
 
@@ -275,15 +371,35 @@ describe('completeSession', () => {
 });
 
 describe('cancelSession', () => {
-  it('updates the session to skipped', async () => {
-    const eq = jest.fn().mockResolvedValue({ error: null });
-    const update = jest.fn().mockReturnValue({ eq });
-    mockedFrom.mockReturnValue({ update } as never);
+  it('deletes any autosaved sets for the session, then marks it skipped', async () => {
+    const eqDelete = jest.fn().mockResolvedValue({ error: null });
+    const deleteFn = jest.fn().mockReturnValue({ eq: eqDelete });
+
+    const eqUpdate = jest.fn().mockResolvedValue({ error: null });
+    const update = jest.fn().mockReturnValue({ eq: eqUpdate });
+
+    mockedFrom.mockImplementation(
+      (table: string) => (table === 'set_logs' ? { delete: deleteFn } : { update }) as never,
+    );
 
     await cancelSession('session-1');
 
+    expect(eqDelete).toHaveBeenCalledWith('workout_session_id', 'session-1');
     expect(update).toHaveBeenCalledWith({ status: 'skipped' });
-    expect(eq).toHaveBeenCalledWith('id', 'session-1');
+    expect(eqUpdate).toHaveBeenCalledWith('id', 'session-1');
+  });
+
+  it('throws without updating the session if deleting its sets fails', async () => {
+    const error = new Error('rls denied');
+    const eqDelete = jest.fn().mockResolvedValue({ error });
+    const update = jest.fn();
+    mockedFrom.mockImplementation(
+      (table: string) =>
+        (table === 'set_logs' ? { delete: () => ({ eq: eqDelete }) } : { update }) as never,
+    );
+
+    await expect(cancelSession('session-1')).rejects.toBe(error);
+    expect(update).not.toHaveBeenCalled();
   });
 });
 
