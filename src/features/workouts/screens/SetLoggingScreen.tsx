@@ -35,6 +35,26 @@ type Props = {
 
 type Draft = { reps: string; weight: string };
 
+function defaultDraft(exercise: ProgramDayExerciseDetail): Draft {
+  return {
+    reps: exercise.reps != null ? String(exercise.reps) : '',
+    weight: exercise.targetWeight != null ? String(exercise.targetWeight) : '',
+  };
+}
+
+function groupByExercise<T extends { exerciseId: string; setIndex: number }>(
+  entries: T[],
+  toDraft: (entry: T) => Draft,
+): Map<string, Draft[]> {
+  const byExercise = new Map<string, Draft[]>();
+  for (const entry of [...entries].sort((a, b) => a.setIndex - b.setIndex)) {
+    const list = byExercise.get(entry.exerciseId) ?? [];
+    list.push(toDraft(entry));
+    byExercise.set(entry.exerciseId, list);
+  }
+  return byExercise;
+}
+
 // set_index is assigned from a running per-exercise counter (not a row's raw array
 // position) so a blank skipped row can't leave a numbering gap, and two program-day-exercise
 // cards sharing the same underlying exercise can't both start at 0 and collide.
@@ -57,67 +77,55 @@ function buildInputs(
   return inputs;
 }
 
-// The inverse of buildInputs: reconstructs draft rows from what's already saved for this
-// session. If the same exercise appears on two program-day-exercise cards, its saved sets
-// (indistinguishable by card — set_logs only knows the exercise, not the card) all land on
-// whichever card comes first here.
+// Real, editable starting values for every card — not a placeholder hint — so opening the
+// screen feels like a notebook that already has numbers in it rather than a blank form:
+// whatever was already saved this session takes priority, then what was actually done the
+// last time this exercise was finished, then the program's own target as a last resort. If
+// the same exercise appears on two program-day-exercise cards in a day, its saved/last-time
+// sets can't be told apart by card (set_logs only knows the exercise, not the card) — both
+// land on whichever card comes first, a rare edge case rather than something worth a schema
+// change for.
 function computeInitialDrafts(
   exercises: ProgramDayExerciseDetail[],
   setLogs: SetLog[],
+  lastPerformed: LogSetInput[],
 ): Record<string, Draft[]> {
-  const savedByExercise = new Map<string, Draft[]>();
-  for (const log of [...setLogs].sort((a, b) => a.setIndex - b.setIndex)) {
-    const list = savedByExercise.get(log.exerciseId) ?? [];
-    list.push({
-      reps: log.repsDone != null ? String(log.repsDone) : '',
-      weight: log.weight != null ? String(log.weight) : '',
-    });
-    savedByExercise.set(log.exerciseId, list);
-  }
+  const savedByExercise = groupByExercise(setLogs, (log) => ({
+    reps: log.repsDone != null ? String(log.repsDone) : '',
+    weight: log.weight != null ? String(log.weight) : '',
+  }));
+  const lastPerformedByExercise = groupByExercise(lastPerformed, (entry) => ({
+    reps: entry.repsDone != null ? String(entry.repsDone) : '',
+    weight: entry.weight != null ? String(entry.weight) : '',
+  }));
 
+  // "claimed" only gates the saved/last-performed tiers, which are keyed by exercise (shared,
+  // ambiguous across two cards for the same exercise) — the target-based fallback is keyed by
+  // the card's own program_day_exercises row, so a second card must still get its own target
+  // rows even after the first card already consumed the shared saved/last-performed data.
   const claimed = new Set<string>();
   const drafts: Record<string, Draft[]> = {};
   for (const exercise of exercises) {
-    if (claimed.has(exercise.exerciseId)) continue;
-    const saved = savedByExercise.get(exercise.exerciseId);
-    if (!saved || saved.length === 0) continue;
-    claimed.add(exercise.exerciseId);
-    drafts[exercise.id] = saved;
+    if (!claimed.has(exercise.exerciseId)) {
+      const saved = savedByExercise.get(exercise.exerciseId);
+      if (saved && saved.length > 0) {
+        claimed.add(exercise.exerciseId);
+        drafts[exercise.id] = saved;
+        continue;
+      }
+      const lastTime = lastPerformedByExercise.get(exercise.exerciseId);
+      if (lastTime && lastTime.length > 0) {
+        claimed.add(exercise.exerciseId);
+        drafts[exercise.id] = lastTime;
+        continue;
+      }
+    }
+    if (exercise.sets != null && exercise.sets > 0) {
+      drafts[exercise.id] = Array.from({ length: exercise.sets }, () => defaultDraft(exercise));
+    }
   }
   return drafts;
 }
-
-// What was actually done the last time each exercise was performed (in some earlier,
-// finished session) — shown as a per-row placeholder hint so a fresh workout doesn't feel
-// like a blank slate, without being real data itself (same "the same exercise on two cards
-// can't be told apart" caveat as computeInitialDrafts applies here too).
-function computeLastPerformedHints(
-  exercises: ProgramDayExerciseDetail[],
-  lastPerformed: LogSetInput[],
-): Record<string, Draft[]> {
-  const byExercise = new Map<string, Draft[]>();
-  for (const entry of [...lastPerformed].sort((a, b) => a.setIndex - b.setIndex)) {
-    const list = byExercise.get(entry.exerciseId) ?? [];
-    list.push({
-      reps: entry.repsDone != null ? String(entry.repsDone) : '',
-      weight: entry.weight != null ? String(entry.weight) : '',
-    });
-    byExercise.set(entry.exerciseId, list);
-  }
-
-  const claimed = new Set<string>();
-  const hints: Record<string, Draft[]> = {};
-  for (const exercise of exercises) {
-    if (claimed.has(exercise.exerciseId)) continue;
-    const hint = byExercise.get(exercise.exerciseId);
-    if (!hint || hint.length === 0) continue;
-    claimed.add(exercise.exerciseId);
-    hints[exercise.id] = hint;
-  }
-  return hints;
-}
-
-export const AUTOSAVE_DELAY_MS = 600;
 
 export function SetLoggingScreen({ userId, sessionId, onCancelled, onCompleted }: Props) {
   const { t } = useTranslation();
@@ -138,12 +146,11 @@ export function SetLoggingScreen({ userId, sessionId, onCancelled, onCompleted }
   const completeSession = useCompleteSession(userId);
   const cancelSession = useCancelSession(userId);
 
-  // Each exercise's sets live here as plain draft rows (added via "+ Add set"); every edit
-  // autosaves to set_logs in the background (debounced) rather than requiring an explicit
-  // save step, so progress is captured continuously and reopening this same (still
-  // "planned") session later shows what was already entered.
+  // Each exercise's sets live here as plain draft rows — nothing is sent to the server as
+  // you type. Everything currently in `drafts` is saved in one request when the user taps
+  // "Finish workout", or when they leave the screen any other way (back button, switching
+  // tabs) so closing without an explicit Finish doesn't lose it either.
   const [drafts, setDrafts] = useState<Record<string, Draft[]>>({});
-  const [lastPerformedHints, setLastPerformedHints] = useState<Record<string, Draft[]>>({});
   const [cancelSheetVisible, setCancelSheetVisible] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveFailed, setSaveFailed] = useState(false);
@@ -153,114 +160,51 @@ export function SetLoggingScreen({ userId, sessionId, onCancelled, onCompleted }
     draftsRef.current = drafts;
   }, [drafts]);
 
-  // scheduleAutosave's setTimeout callback fires later, on whatever render happened to
-  // schedule it — without this ref it would close over that render's exercisesQuery.data,
-  // which could be stale by the time it actually runs (e.g. a background refetch resolved
-  // in between) and mis-number set_index or skip trimming a newly-added exercise.
+  // The unmount-flush effect below only runs once (empty deps) and reads exercisesQuery.data
+  // from whichever render happened to be current at mount — this ref keeps it current so a
+  // background refetch that resolves later doesn't leave it flushing against a stale list.
   const exercisesRef = useRef(exercisesQuery.data);
   useEffect(() => {
     exercisesRef.current = exercisesQuery.data;
   }, [exercisesQuery.data]);
 
   const isMountedRef = useRef(true);
+  // True once the current drafts have been explicitly handled — saved via Finish, or
+  // intentionally discarded via Cancel — so the unmount-flush effect below knows not to
+  // save them again (redundant after Finish) or at all (Cancel means "throw this away").
+  // Reset to false by any further edit, since that edit hasn't been handled yet.
+  const isHandledRef = useRef(false);
 
-  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Serializes autosave/finish calls to at most one in flight at a time — a rejected sync
-  // is swallowed here (each caller handles its own error) so one failure can't permanently
-  // block every sync queued after it.
-  const syncChainRef = useRef<Promise<void>>(Promise.resolve());
-  // Surfaced as a small "Saving…" indicator — without it, a save that's still in flight when
-  // the user tries to leave looks identical to one that already finished, so there's no cue
-  // that leaving right this moment is any different from leaving a second later. Tracked as a
-  // count, not a plain boolean: if a second sync gets queued behind one already in flight (via
-  // syncChainRef), the indicator must stay visible for the whole stretch — a boolean reset by
-  // the first call's .finally would flip it off the instant that one settles, even though the
-  // second is guaranteed to run right after.
-  const pendingSyncCountRef = useRef(0);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const runQueuedSync = (currentDrafts: Record<string, Draft[]>): Promise<void> => {
-    const exercises = exercisesRef.current ?? [];
-    pendingSyncCountRef.current += 1;
-    if (isMountedRef.current) setIsSyncing(true);
-    const run = syncChainRef.current
-      .catch(() => {})
-      .then(() =>
-        syncSetLogs.mutateAsync({
-          allExerciseIds: exercises.map((exercise) => exercise.exerciseId),
-          inputs: buildInputs(exercises, currentDrafts),
-        }),
-      )
-      .finally(() => {
-        pendingSyncCountRef.current -= 1;
-        if (isMountedRef.current) setIsSyncing(pendingSyncCountRef.current > 0);
-      });
-    syncChainRef.current = run;
-    return run;
-  };
-
-  const scheduleAutosave = (nextDrafts: Record<string, Draft[]>) => {
-    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-    debounceTimerRef.current = setTimeout(() => {
-      debounceTimerRef.current = null;
-      runQueuedSync(draftsRef.current)
-        .then(() => {
-          if (isMountedRef.current) setSaveFailed(false);
-        })
-        .catch(() => {
-          if (isMountedRef.current) setSaveFailed(true);
-        });
-    }, AUTOSAVE_DELAY_MS);
-  };
-
-  // Leaving the screen (back button, switching tabs, closing the app) is not a save action
-  // the way Finish or Cancel are — there's no explicit moment to flush a pending edit, so
-  // this has to do it on unmount instead. Merely clearing the timer here would silently
-  // drop whatever was typed in the last ~600ms before leaving: the debounce would never
-  // fire, so that edit would never reach the server at all, and reopening the session would
-  // show it as if it had never been entered. The request itself is fired and left running
-  // after unmount (it isn't tied to the component's lifecycle) — only the resulting setState
-  // is guarded, via isMountedRef.
-  // Deliberately omits runQueuedSync from the deps array: it's redefined every render, so
-  // listing it would re-fire this cleanup (and flush mid-typing) on every render instead of
-  // only on actual unmount. It reads its real data from refs at call time regardless of
-  // which render's closure gets invoked, so using a possibly-stale one here is safe.
   useEffect(() => {
     return () => {
       isMountedRef.current = false;
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-        debounceTimerRef.current = null;
-        runQueuedSync(draftsRef.current).catch(() => {});
-      }
+      if (isHandledRef.current) return;
+      // Leaving without pressing Finish or Cancel (back button, switching tabs, closing the
+      // app) still needs to save whatever was typed — otherwise reopening this session later
+      // would show no trace it was ever entered. The request is fired and left running after
+      // unmount since it isn't tied to the component's lifecycle.
+      const exercises = exercisesRef.current ?? [];
+      syncSetLogs
+        .mutateAsync({
+          allExerciseIds: exercises.map((exercise) => exercise.exerciseId),
+          inputs: buildInputs(exercises, draftsRef.current),
+        })
+        .catch(() => {});
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Repopulates fields from whatever was already saved for this session, once, the first
-  // render where all three queries have data — set during render rather than in an Effect
-  // (React's documented pattern for initializing state from data that just became available:
-  // it re-renders immediately with the new state before anything is painted, instead of
-  // committing a wasted empty-fields frame first). An exercise with no saved sets this
-  // session gets no rows — unless it has a last-performed hint, in which case it gets that
-  // many blank rows so the placeholder hints below are visible right away (still nothing to
-  // autosave until the user actually types into one). If the same exercise appears on two
-  // program-day-exercise cards in one day, neither its saved sets nor its last-performed sets
-  // can be told apart by card (set_logs only knows the exercise, not the card) — both land on
-  // whichever card comes first, a rare edge case rather than something worth a schema change.
+  // Sets the fields' starting values, once, the first render where all three queries have
+  // data — set during render rather than in an Effect (React's documented pattern for
+  // initializing state from data that just became available: it re-renders immediately with
+  // the new state before anything is painted, instead of committing a wasted empty-fields
+  // frame first).
   const [isInitialized, setIsInitialized] = useState(false);
   if (!isInitialized && exercisesQuery.data && setLogsQuery.data && !lastPerformedQuery.isLoading) {
     setIsInitialized(true);
-    const savedDrafts = computeInitialDrafts(exercisesQuery.data, setLogsQuery.data);
-    const hints = computeLastPerformedHints(exercisesQuery.data, lastPerformedQuery.data ?? []);
-    const mergedDrafts = { ...savedDrafts };
-    for (const exercise of exercisesQuery.data) {
-      if (mergedDrafts[exercise.id]) continue;
-      const hint = hints[exercise.id];
-      if (!hint) continue;
-      mergedDrafts[exercise.id] = hint.map(() => ({ reps: '', weight: '' }));
-    }
-    setDrafts(mergedDrafts);
-    setLastPerformedHints(hints);
+    setDrafts(
+      computeInitialDrafts(exercisesQuery.data, setLogsQuery.data, lastPerformedQuery.data ?? []),
+    );
   }
 
   const setDraftField = (
@@ -269,71 +213,50 @@ export function SetLoggingScreen({ userId, sessionId, onCancelled, onCompleted }
     field: keyof Draft,
     value: string,
   ) => {
+    isHandledRef.current = false;
     const rows = drafts[exercise.id] ?? [];
-    const nextDrafts = {
+    setDrafts({
       ...drafts,
       [exercise.id]: rows.map((row, i) => (i === rowIndex ? { ...row, [field]: value } : row)),
-    };
-    setDrafts(nextDrafts);
-    scheduleAutosave(nextDrafts);
+    });
   };
 
-  // A new row starts blank, not prefilled with the exercise's target — until the user
-  // actually types something, "+ Add set" alone shouldn't autosave a set nobody confirmed
-  // they did. The target is only shown as a placeholder hint (below).
   const handleAddSetRow = (exercise: ProgramDayExerciseDetail) => {
+    isHandledRef.current = false;
     const rows = drafts[exercise.id] ?? [];
-    const nextDrafts = { ...drafts, [exercise.id]: [...rows, { reps: '', weight: '' }] };
-    setDrafts(nextDrafts);
+    setDrafts({ ...drafts, [exercise.id]: [...rows, defaultDraft(exercise)] });
   };
 
-  // Clearing the pending timer alone isn't enough — an autosave that already fired is
-  // mid-flight in syncChainRef, independent of cancelSession's own delete+update. Awaiting
-  // it first guarantees that write has landed (or failed) before cancelSession deletes
-  // set_logs, so a slow autosave response can't land after the delete and resurrect a row
-  // for a session that's now "skipped". cancelSession.isPending only reflects its own network
-  // call, which hasn't started yet during that await, so a second tap in that window would
-  // otherwise fire cancelSession.mutate (and its onCancelled navigation) twice — guarded via
-  // a ref, not the isCancelling state, since two taps landing before React re-renders would
-  // both close over the same stale (pre-update) state value.
-  const isCancellingRef = useRef(false);
-  const [isCancelling, setIsCancelling] = useState(false);
-  const handleConfirmCancel = async () => {
-    if (isCancellingRef.current) return;
-    isCancellingRef.current = true;
-    setIsCancelling(true);
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-      debounceTimerRef.current = null;
-    }
-    await syncChainRef.current.catch(() => {});
+  const handleConfirmCancel = () => {
+    // Only marked handled once cancelSession actually succeeds — if it fails, the session is
+    // still "planned" and unedited, so a later unmount (after the user dismisses the error and
+    // leaves some other way) must still get a chance to save the current drafts instead of
+    // silently discarding them for a cancel that never actually happened.
     cancelSession.mutate(sessionId, {
-      onSuccess: () => onCancelled(),
-      onError: () => {
-        isCancellingRef.current = false;
-        setIsCancelling(false);
+      onSuccess: () => {
+        isHandledRef.current = true;
+        onCancelled();
       },
     });
   };
 
-  // Everything is already autosaved by the time this runs — Finish just needs to flush any
-  // pending/in-flight sync (so the very latest edit is guaranteed to have landed even if the
-  // debounce hadn't fired yet) before marking the session done.
   const handleFinish = async () => {
     setIsSaving(true);
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-      debounceTimerRef.current = null;
-    }
     try {
-      await runQueuedSync(drafts);
+      await syncSetLogs.mutateAsync({
+        allExerciseIds: (exercisesQuery.data ?? []).map((exercise) => exercise.exerciseId),
+        inputs: buildInputs(exercisesQuery.data ?? [], drafts),
+      });
+      // Only marked handled once the save actually succeeds — if it fails, a later unmount
+      // should still get a chance to save the same (still-current) drafts.
+      isHandledRef.current = true;
       setSaveFailed(false);
       await completeSession.mutateAsync(sessionId);
       onCompleted(sessionId);
     } catch {
       setSaveFailed(true);
     } finally {
-      setIsSaving(false);
+      if (isMountedRef.current) setIsSaving(false);
     }
   };
 
@@ -350,7 +273,12 @@ export function SetLoggingScreen({ userId, sessionId, onCancelled, onCompleted }
     );
   }
 
-  if (sessionQuery.isError || exercisesQuery.isError || setLogsQuery.isError) {
+  if (
+    sessionQuery.isError ||
+    exercisesQuery.isError ||
+    setLogsQuery.isError ||
+    lastPerformedQuery.isError
+  ) {
     return (
       <View style={styles.centered} testID="set-logging-load-error">
         <Text style={formStyles.error}>{t('workouts.loadError')}</Text>
@@ -370,12 +298,6 @@ export function SetLoggingScreen({ userId, sessionId, onCancelled, onCompleted }
           <Text style={styles.cancelText}>{t('workouts.cancel')}</Text>
         </TouchableOpacity>
       </View>
-
-      {isSyncing && (
-        <Text style={styles.savingIndicator} testID="set-logging-saving">
-          {t('workouts.saving')}
-        </Text>
-      )}
 
       <ScrollView contentContainerStyle={styles.container}>
         {(exercisesQuery.data ?? []).map((exercise) => {
@@ -403,39 +325,28 @@ export function SetLoggingScreen({ userId, sessionId, onCancelled, onCompleted }
                 </Text>
               )}
 
-              {rows.map((draft, rowIndex) => {
-                const hint = lastPerformedHints[exercise.id]?.[rowIndex];
-                const repsPlaceholder =
-                  hint?.reps ||
-                  (exercise.reps != null ? String(exercise.reps) : t('workouts.repsPlaceholder'));
-                const weightPlaceholder =
-                  hint?.weight ||
-                  (exercise.targetWeight != null
-                    ? String(exercise.targetWeight)
-                    : t('workouts.weightPlaceholder'));
-                return (
-                  <View key={rowIndex} style={[styles.fieldsRow, styles.setRow]}>
-                    <TextInput
-                      style={[formStyles.input, styles.field]}
-                      value={draft.reps}
-                      onChangeText={(value) => setDraftField(exercise, rowIndex, 'reps', value)}
-                      placeholder={repsPlaceholder}
-                      placeholderTextColor={colors.textFaint}
-                      keyboardType="number-pad"
-                      testID={`set-logging-${exercise.id}-reps-${rowIndex}`}
-                    />
-                    <TextInput
-                      style={[formStyles.input, styles.field]}
-                      value={draft.weight}
-                      onChangeText={(value) => setDraftField(exercise, rowIndex, 'weight', value)}
-                      placeholder={weightPlaceholder}
-                      placeholderTextColor={colors.textFaint}
-                      keyboardType="decimal-pad"
-                      testID={`set-logging-${exercise.id}-weight-${rowIndex}`}
-                    />
-                  </View>
-                );
-              })}
+              {rows.map((draft, rowIndex) => (
+                <View key={rowIndex} style={[styles.fieldsRow, styles.setRow]}>
+                  <TextInput
+                    style={[formStyles.input, styles.field]}
+                    value={draft.reps}
+                    onChangeText={(value) => setDraftField(exercise, rowIndex, 'reps', value)}
+                    placeholder={t('workouts.repsPlaceholder')}
+                    placeholderTextColor={colors.textFaint}
+                    keyboardType="number-pad"
+                    testID={`set-logging-${exercise.id}-reps-${rowIndex}`}
+                  />
+                  <TextInput
+                    style={[formStyles.input, styles.field]}
+                    value={draft.weight}
+                    onChangeText={(value) => setDraftField(exercise, rowIndex, 'weight', value)}
+                    placeholder={t('workouts.weightPlaceholder')}
+                    placeholderTextColor={colors.textFaint}
+                    keyboardType="decimal-pad"
+                    testID={`set-logging-${exercise.id}-weight-${rowIndex}`}
+                  />
+                </View>
+              ))}
 
               <TouchableOpacity
                 onPress={() => handleAddSetRow(exercise)}
@@ -469,7 +380,7 @@ export function SetLoggingScreen({ userId, sessionId, onCancelled, onCompleted }
       <CancelWorkoutSheet
         visible={cancelSheetVisible}
         isError={cancelSession.isError}
-        isPending={isCancelling || cancelSession.isPending}
+        isPending={cancelSession.isPending}
         onConfirm={handleConfirmCancel}
         onKeepGoing={() => setCancelSheetVisible(false)}
       />
@@ -501,12 +412,6 @@ function buildStyles(colors: ThemeColors) {
     cancelText: {
       color: colors.error,
       fontWeight: '600',
-    },
-    savingIndicator: {
-      color: colors.textMuted,
-      fontSize: 12,
-      textAlign: 'center',
-      paddingBottom: spacing.sm,
     },
     container: {
       padding: spacing.xl,

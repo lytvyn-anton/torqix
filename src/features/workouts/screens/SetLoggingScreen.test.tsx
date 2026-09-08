@@ -1,4 +1,4 @@
-import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
+import { fireEvent, screen, waitFor } from '@testing-library/react-native';
 
 import '../../../shared/i18n';
 import { renderWithProviders as render } from '../../../shared/testing/renderWithProviders';
@@ -9,7 +9,7 @@ import { useProgramDayExercises } from '../hooks/useProgramDayExercises';
 import { useSetLogs } from '../hooks/useSetLogs';
 import { useSyncSetLogs } from '../hooks/useSyncSetLogs';
 import { useWorkoutSession } from '../hooks/useWorkoutSession';
-import { AUTOSAVE_DELAY_MS, SetLoggingScreen } from './SetLoggingScreen';
+import { SetLoggingScreen } from './SetLoggingScreen';
 
 jest.mock('../hooks/useWorkoutSession', () => ({ useWorkoutSession: jest.fn() }));
 jest.mock('../hooks/useProgramDayExercises', () => ({ useProgramDayExercises: jest.fn() }));
@@ -82,6 +82,7 @@ describe('SetLoggingScreen', () => {
     cancelMutate = jest.fn();
     mockedUseCancelSession.mockReturnValue({
       mutate: cancelMutate,
+      isPending: false,
     } as unknown as ReturnType<typeof useCancelSession>);
   });
 
@@ -104,7 +105,7 @@ describe('SetLoggingScreen', () => {
     expect(screen.getByTestId('set-logging-loading')).toBeTruthy();
   });
 
-  it('shows the day name and target, with no set fields until "+ Add set" is pressed', async () => {
+  it('pre-fills real, editable rows matching the program target when there is no history', async () => {
     await render(
       <SetLoggingScreen
         userId="user-1"
@@ -116,61 +117,21 @@ describe('SetLoggingScreen', () => {
 
     expect(screen.getByText('Back Squat')).toBeTruthy();
     expect(screen.getByText('Target: 3 × 10')).toBeTruthy();
-    expect(screen.queryByTestId('set-logging-pde-1-reps-0')).toBeNull();
+    // 3 real rows (matching the target set count), prefilled with the target reps/weight —
+    // not placeholders, not blank.
+    for (const i of [0, 1, 2]) {
+      expect(screen.getByTestId(`set-logging-pde-1-reps-${i}`).props.value).toBe('10');
+      expect(screen.getByTestId(`set-logging-pde-1-weight-${i}`).props.value).toBe('40');
+    }
     // First "real" render in this describe block is slow on CI (see the same bump on
     // ProgramCreateScreen.test.tsx's first test) — default 5000ms timeout flaked there.
   }, 15000);
 
-  it('adds a blank set row hinting the exercise target as a placeholder', async () => {
-    await render(
-      <SetLoggingScreen
-        userId="user-1"
-        sessionId="session-1"
-        onCancelled={jest.fn()}
-        onCompleted={jest.fn()}
-      />,
-    );
-
-    await fireEvent.press(screen.getByTestId('set-logging-pde-1-add-set'));
-
-    // Blank, not prefilled: adding a row shouldn't by itself autosave a set nobody actually
-    // confirmed — the target is only a placeholder hint until the user types a real value.
-    expect(screen.getByTestId('set-logging-pde-1-reps-0').props.value).toBe('');
-    expect(screen.getByTestId('set-logging-pde-1-reps-0').props.placeholder).toBe('10');
-    expect(screen.getByTestId('set-logging-pde-1-weight-0').props.value).toBe('');
-    expect(screen.getByTestId('set-logging-pde-1-weight-0').props.placeholder).toBe('40');
-  });
-
-  it('repopulates fields with sets already saved for this session on reopen', async () => {
-    mockedUseSetLogs.mockReturnValue({
-      data: [
-        { id: 'log-1', exerciseId: 'ex-1', setIndex: 0, repsDone: 10, weight: 15 },
-        { id: 'log-2', exerciseId: 'ex-1', setIndex: 1, repsDone: 8, weight: 20 },
-      ],
-      isLoading: false,
-      isError: false,
-    } as unknown as ReturnType<typeof useSetLogs>);
-
-    await render(
-      <SetLoggingScreen
-        userId="user-1"
-        sessionId="session-1"
-        onCancelled={jest.fn()}
-        onCompleted={jest.fn()}
-      />,
-    );
-
-    expect(screen.getByTestId('set-logging-pde-1-reps-0').props.value).toBe('10');
-    expect(screen.getByTestId('set-logging-pde-1-weight-0').props.value).toBe('15');
-    expect(screen.getByTestId('set-logging-pde-1-reps-1').props.value).toBe('8');
-    expect(screen.getByTestId('set-logging-pde-1-weight-1').props.value).toBe('20');
-  });
-
-  it("pre-fills blank rows with last time's performance as a placeholder hint", async () => {
+  it('pre-fills rows with what was actually done last time, when that exists', async () => {
     mockedUseLastPerformedSets.mockReturnValue({
       data: [
-        { exerciseId: 'ex-1', setIndex: 0, repsDone: 10, weight: 45 },
-        { exerciseId: 'ex-1', setIndex: 1, repsDone: 8, weight: 47.5 },
+        { exerciseId: 'ex-1', setIndex: 0, repsDone: 8, weight: 45 },
+        { exerciseId: 'ex-1', setIndex: 1, repsDone: 6, weight: 47.5 },
       ],
       isLoading: false,
       isError: false,
@@ -185,28 +146,22 @@ describe('SetLoggingScreen', () => {
       />,
     );
 
-    // Two blank rows appear automatically (matching last time's set count), each hinting
-    // what was actually done last time rather than the program's generic target.
-    expect(screen.getByTestId('set-logging-pde-1-reps-0').props.value).toBe('');
-    expect(screen.getByTestId('set-logging-pde-1-reps-0').props.placeholder).toBe('10');
-    expect(screen.getByTestId('set-logging-pde-1-weight-0').props.placeholder).toBe('45');
-    expect(screen.getByTestId('set-logging-pde-1-reps-1').props.placeholder).toBe('8');
-    expect(screen.getByTestId('set-logging-pde-1-weight-1').props.placeholder).toBe('47.5');
-
-    expect(syncSetLogsMutate).not.toHaveBeenCalled();
+    // Last time's 2 sets win over the program's target-based 3 rows.
+    expect(screen.getByTestId('set-logging-pde-1-reps-0').props.value).toBe('8');
+    expect(screen.getByTestId('set-logging-pde-1-weight-0').props.value).toBe('45');
+    expect(screen.getByTestId('set-logging-pde-1-reps-1').props.value).toBe('6');
+    expect(screen.getByTestId('set-logging-pde-1-weight-1').props.value).toBe('47.5');
+    expect(screen.queryByTestId('set-logging-pde-1-reps-2')).toBeNull();
   });
 
-  it('does not override sets already saved this session with last-performed hints', async () => {
+  it('pre-fills rows with sets already saved this session, over last time or the target', async () => {
     mockedUseSetLogs.mockReturnValue({
-      data: [{ id: 'log-1', exerciseId: 'ex-1', setIndex: 0, repsDone: 10, weight: 15 }],
+      data: [{ id: 'log-1', exerciseId: 'ex-1', setIndex: 0, repsDone: 9, weight: 42.5 }],
       isLoading: false,
       isError: false,
     } as unknown as ReturnType<typeof useSetLogs>);
     mockedUseLastPerformedSets.mockReturnValue({
-      data: [
-        { exerciseId: 'ex-1', setIndex: 0, repsDone: 99, weight: 99 },
-        { exerciseId: 'ex-1', setIndex: 1, repsDone: 99, weight: 99 },
-      ],
+      data: [{ exerciseId: 'ex-1', setIndex: 0, repsDone: 8, weight: 45 }],
       isLoading: false,
       isError: false,
     } as unknown as ReturnType<typeof useLastPerformedSets>);
@@ -220,13 +175,12 @@ describe('SetLoggingScreen', () => {
       />,
     );
 
-    // Real data for this session wins — only the one row actually saved this session shows,
-    // not the two-row shape from last time's hint.
-    expect(screen.getByTestId('set-logging-pde-1-reps-0').props.value).toBe('10');
+    expect(screen.getByTestId('set-logging-pde-1-reps-0').props.value).toBe('9');
+    expect(screen.getByTestId('set-logging-pde-1-weight-0').props.value).toBe('42.5');
     expect(screen.queryByTestId('set-logging-pde-1-reps-1')).toBeNull();
   });
 
-  it('autosaves an edited set in the background, without pressing finish', async () => {
+  it('adds another row prefilled with the target when "+ Add set" is pressed', async () => {
     await render(
       <SetLoggingScreen
         userId="user-1"
@@ -237,22 +191,28 @@ describe('SetLoggingScreen', () => {
     );
 
     await fireEvent.press(screen.getByTestId('set-logging-pde-1-add-set'));
-    await fireEvent.changeText(screen.getByTestId('set-logging-pde-1-reps-0'), '10');
-    await fireEvent.changeText(screen.getByTestId('set-logging-pde-1-weight-0'), '15');
 
-    expect(syncSetLogsMutate).not.toHaveBeenCalled();
-
-    await waitFor(
-      () =>
-        expect(syncSetLogsMutate).toHaveBeenCalledWith({
-          allExerciseIds: ['ex-1'],
-          inputs: [{ exerciseId: 'ex-1', setIndex: 0, repsDone: 10, weight: 15 }],
-        }),
-      { timeout: 2000 },
-    );
+    expect(screen.getByTestId('set-logging-pde-1-reps-3').props.value).toBe('10');
+    expect(screen.getByTestId('set-logging-pde-1-weight-3').props.value).toBe('40');
   });
 
-  it('saves every entered set for every touched exercise and completes the session on finish', async () => {
+  it('does not call the server while editing — only on finish', async () => {
+    await render(
+      <SetLoggingScreen
+        userId="user-1"
+        sessionId="session-1"
+        onCancelled={jest.fn()}
+        onCompleted={jest.fn()}
+      />,
+    );
+
+    await fireEvent.changeText(screen.getByTestId('set-logging-pde-1-reps-0'), '12');
+    await fireEvent.changeText(screen.getByTestId('set-logging-pde-1-weight-0'), '50');
+
+    expect(syncSetLogsMutate).not.toHaveBeenCalled();
+  });
+
+  it('saves everything in one request and completes the session on finish', async () => {
     const onCompleted = jest.fn();
     await render(
       <SetLoggingScreen
@@ -263,13 +223,10 @@ describe('SetLoggingScreen', () => {
       />,
     );
 
-    await fireEvent.press(screen.getByTestId('set-logging-pde-1-add-set'));
-    await fireEvent.changeText(screen.getByTestId('set-logging-pde-1-reps-0'), '10');
-    await fireEvent.changeText(screen.getByTestId('set-logging-pde-1-weight-0'), '15');
-
-    await fireEvent.press(screen.getByTestId('set-logging-pde-1-add-set'));
-    await fireEvent.changeText(screen.getByTestId('set-logging-pde-1-reps-1'), '8');
-    await fireEvent.changeText(screen.getByTestId('set-logging-pde-1-weight-1'), '20');
+    await fireEvent.changeText(screen.getByTestId('set-logging-pde-1-reps-0'), '12');
+    await fireEvent.changeText(screen.getByTestId('set-logging-pde-1-weight-0'), '50');
+    // Row 1 left exactly as prefilled (10 × 40kg) — that's still a real, intentional value,
+    // not an untouched placeholder, so it's saved too.
 
     await fireEvent.press(screen.getByTestId('set-logging-finish'));
 
@@ -277,8 +234,9 @@ describe('SetLoggingScreen', () => {
       expect(syncSetLogsMutate).toHaveBeenCalledWith({
         allExerciseIds: ['ex-1'],
         inputs: [
-          { exerciseId: 'ex-1', setIndex: 0, repsDone: 10, weight: 15 },
-          { exerciseId: 'ex-1', setIndex: 1, repsDone: 8, weight: 20 },
+          { exerciseId: 'ex-1', setIndex: 0, repsDone: 12, weight: 50 },
+          { exerciseId: 'ex-1', setIndex: 1, repsDone: 10, weight: 40 },
+          { exerciseId: 'ex-1', setIndex: 2, repsDone: 10, weight: 40 },
         ],
       }),
     );
@@ -286,7 +244,7 @@ describe('SetLoggingScreen', () => {
     expect(onCompleted).toHaveBeenCalledWith('session-1');
   });
 
-  it('does not save anything for an exercise the user never touched, or a row left blank', async () => {
+  it('skips a row cleared back to fully blank', async () => {
     await render(
       <SetLoggingScreen
         userId="user-1"
@@ -296,22 +254,26 @@ describe('SetLoggingScreen', () => {
       />,
     );
 
-    await fireEvent.press(screen.getByTestId('set-logging-pde-1-add-set'));
-    await fireEvent.changeText(screen.getByTestId('set-logging-pde-1-reps-0'), '');
-    await fireEvent.changeText(screen.getByTestId('set-logging-pde-1-weight-0'), '');
+    for (const i of [0, 1, 2]) {
+      await fireEvent.changeText(screen.getByTestId(`set-logging-pde-1-reps-${i}`), '');
+      await fireEvent.changeText(screen.getByTestId(`set-logging-pde-1-weight-${i}`), '');
+    }
+    await fireEvent.changeText(screen.getByTestId('set-logging-pde-1-reps-0'), '12');
 
     await fireEvent.press(screen.getByTestId('set-logging-finish'));
 
     await waitFor(() =>
-      expect(syncSetLogsMutate).toHaveBeenCalledWith({ allExerciseIds: ['ex-1'], inputs: [] }),
+      expect(syncSetLogsMutate).toHaveBeenCalledWith({
+        allExerciseIds: ['ex-1'],
+        inputs: [{ exerciseId: 'ex-1', setIndex: 0, repsDone: 12, weight: null }],
+      }),
     );
-    expect(completeMutate).toHaveBeenCalledWith('session-1');
   });
 
   it('assigns sequential set_index per exercise across two cards for the same exercise', async () => {
     mockedUseProgramDayExercises.mockReturnValue({
       data: [
-        exercises[0],
+        { ...exercises[0], sets: 1 },
         {
           id: 'pde-2',
           exerciseId: 'ex-1',
@@ -335,44 +297,20 @@ describe('SetLoggingScreen', () => {
       />,
     );
 
-    await fireEvent.press(screen.getByTestId('set-logging-pde-1-add-set'));
-    await fireEvent.changeText(screen.getByTestId('set-logging-pde-1-reps-0'), '10');
-    await fireEvent.changeText(screen.getByTestId('set-logging-pde-1-weight-0'), '15');
-
-    await fireEvent.press(screen.getByTestId('set-logging-pde-2-add-set'));
-    await fireEvent.changeText(screen.getByTestId('set-logging-pde-2-reps-0'), '12');
-
     await fireEvent.press(screen.getByTestId('set-logging-finish'));
 
     await waitFor(() =>
       expect(syncSetLogsMutate).toHaveBeenCalledWith({
         allExerciseIds: ['ex-1', 'ex-1'],
         inputs: [
-          { exerciseId: 'ex-1', setIndex: 0, repsDone: 10, weight: 15 },
-          { exerciseId: 'ex-1', setIndex: 1, repsDone: 12, weight: null },
+          { exerciseId: 'ex-1', setIndex: 0, repsDone: 10, weight: 40 },
+          { exerciseId: 'ex-1', setIndex: 1, repsDone: 15, weight: null },
         ],
       }),
     );
   });
 
-  it('does not autosave an added row until it is actually edited', async () => {
-    await render(
-      <SetLoggingScreen
-        userId="user-1"
-        sessionId="session-1"
-        onCancelled={jest.fn()}
-        onCompleted={jest.fn()}
-      />,
-    );
-
-    await fireEvent.press(screen.getByTestId('set-logging-pde-1-add-set'));
-    // Long enough to catch a debounce that fires without being asked to.
-    await new Promise((resolve) => setTimeout(resolve, AUTOSAVE_DELAY_MS + 200));
-
-    expect(syncSetLogsMutate).not.toHaveBeenCalled();
-  });
-
-  it('flushes a pending autosave on unmount instead of discarding it', async () => {
+  it('flushes whatever is in the fields on unmount if the user leaves without finishing', async () => {
     const { unmount } = await render(
       <SetLoggingScreen
         userId="user-1"
@@ -382,24 +320,24 @@ describe('SetLoggingScreen', () => {
       />,
     );
 
-    await fireEvent.press(screen.getByTestId('set-logging-pde-1-add-set'));
-    await fireEvent.changeText(screen.getByTestId('set-logging-pde-1-reps-0'), '10');
-
-    // Leave well before the debounce would have fired on its own — e.g. the user typed a
-    // value then immediately switched tabs. Without a flush, this edit would otherwise never
-    // reach the server: reopening the session later would show no trace it was ever typed.
+    await fireEvent.changeText(screen.getByTestId('set-logging-pde-1-reps-0'), '12');
     expect(syncSetLogsMutate).not.toHaveBeenCalled();
+
     unmount();
 
     await waitFor(() =>
       expect(syncSetLogsMutate).toHaveBeenCalledWith({
         allExerciseIds: ['ex-1'],
-        inputs: [{ exerciseId: 'ex-1', setIndex: 0, repsDone: 10, weight: null }],
+        inputs: [
+          { exerciseId: 'ex-1', setIndex: 0, repsDone: 12, weight: 40 },
+          { exerciseId: 'ex-1', setIndex: 1, repsDone: 10, weight: 40 },
+          { exerciseId: 'ex-1', setIndex: 2, repsDone: 10, weight: 40 },
+        ],
       }),
     );
   });
 
-  it('does not re-flush on unmount once finish has already cleared the pending debounce', async () => {
+  it('does not re-save on unmount once finish already saved successfully', async () => {
     const { unmount } = await render(
       <SetLoggingScreen
         userId="user-1"
@@ -409,20 +347,15 @@ describe('SetLoggingScreen', () => {
       />,
     );
 
-    await fireEvent.press(screen.getByTestId('set-logging-pde-1-add-set'));
-    await fireEvent.changeText(screen.getByTestId('set-logging-pde-1-reps-0'), '10');
     await fireEvent.press(screen.getByTestId('set-logging-finish'));
-
     await waitFor(() => expect(syncSetLogsMutate).toHaveBeenCalledTimes(1));
 
-    // The pending debounce was already cleared and flushed by Finish — unmounting afterward
-    // (leaving the completion screen) must not fire syncSetLogs a second time.
     unmount();
-    await new Promise((resolve) => setTimeout(resolve, AUTOSAVE_DELAY_MS + 50));
+    await new Promise((resolve) => setTimeout(resolve, 20));
     expect(syncSetLogsMutate).toHaveBeenCalledTimes(1);
   });
 
-  it('does not re-flush (and resurrect a deleted set) on unmount once cancel has already cleared the pending debounce', async () => {
+  it('does not save anything on unmount after cancelling — the drafts are discarded', async () => {
     const onCancelled = jest.fn();
     const { unmount } = await render(
       <SetLoggingScreen
@@ -433,55 +366,45 @@ describe('SetLoggingScreen', () => {
       />,
     );
 
-    await fireEvent.press(screen.getByTestId('set-logging-pde-1-add-set'));
-    await fireEvent.changeText(screen.getByTestId('set-logging-pde-1-reps-0'), '10');
-
     await fireEvent.press(screen.getByTestId('set-logging-cancel'));
     await fireEvent.press(screen.getByTestId('cancel-workout-confirm'));
-    await waitFor(() => expect(cancelMutate).toHaveBeenCalled());
-    cancelMutate.mock.calls[0][1].onSuccess();
 
-    // handleConfirmCancel awaited the sync chain and cleared the timer before cancelSession
-    // ran — unmounting afterward (as onCancelled's navigation would) must not re-run
-    // syncSetLogs and resurrect the row cancelSession just deleted.
+    expect(cancelMutate).toHaveBeenCalledWith(
+      'session-1',
+      expect.objectContaining({ onSuccess: expect.any(Function) }),
+    );
+    cancelMutate.mock.calls[0][1].onSuccess();
+    expect(onCancelled).toHaveBeenCalled();
+
     unmount();
-    await new Promise((resolve) => setTimeout(resolve, AUTOSAVE_DELAY_MS + 50));
+    await new Promise((resolve) => setTimeout(resolve, 20));
     expect(syncSetLogsMutate).not.toHaveBeenCalled();
   });
 
-  it('cancels a pending autosave instead of writing it when the workout is cancelled', async () => {
-    const onCancelled = jest.fn();
-    await render(
+  it('still saves on a later unmount if cancelling failed — the session was never actually cancelled', async () => {
+    const { unmount } = await render(
       <SetLoggingScreen
         userId="user-1"
         sessionId="session-1"
-        onCancelled={onCancelled}
+        onCancelled={jest.fn()}
         onCompleted={jest.fn()}
       />,
     );
-
-    await fireEvent.press(screen.getByTestId('set-logging-pde-1-add-set'));
-    await fireEvent.changeText(screen.getByTestId('set-logging-pde-1-reps-0'), '10');
 
     await fireEvent.press(screen.getByTestId('set-logging-cancel'));
     await fireEvent.press(screen.getByTestId('cancel-workout-confirm'));
-    await waitFor(() => expect(cancelMutate).toHaveBeenCalled());
-    cancelMutate.mock.calls[0][1].onSuccess();
 
-    await new Promise((resolve) => setTimeout(resolve, AUTOSAVE_DELAY_MS + 200));
-    expect(syncSetLogsMutate).not.toHaveBeenCalled();
+    // cancelSession.mutate was called, but never resolved with onSuccess (e.g. it failed) —
+    // isHandledRef must not have been set, so leaving afterward still saves the real drafts.
+    unmount();
+
+    await waitFor(() => expect(syncSetLogsMutate).toHaveBeenCalledTimes(1));
   });
 
-  it('waits for an in-flight autosave to settle before cancelling, so it cannot resurrect a row after cancel deletes it', async () => {
-    let resolveSync: () => void = () => {};
-    syncSetLogsMutate.mockImplementation(
-      () =>
-        new Promise<void>((resolve) => {
-          resolveSync = resolve;
-        }),
-    );
+  it('retries saving on a later unmount if finish failed to save the first time', async () => {
+    syncSetLogsMutate.mockRejectedValueOnce(new Error('network error'));
 
-    await render(
+    const { unmount } = await render(
       <SetLoggingScreen
         userId="user-1"
         sessionId="session-1"
@@ -490,70 +413,13 @@ describe('SetLoggingScreen', () => {
       />,
     );
 
-    await fireEvent.press(screen.getByTestId('set-logging-pde-1-add-set'));
-    await fireEvent.changeText(screen.getByTestId('set-logging-pde-1-reps-0'), '10');
+    await fireEvent.press(screen.getByTestId('set-logging-finish'));
+    await waitFor(() => expect(screen.getByTestId('set-logging-finish-error')).toBeTruthy());
+    expect(completeMutate).not.toHaveBeenCalled();
 
-    // Let the debounce actually fire, so the autosave is genuinely in flight (not merely
-    // scheduled) by the time cancel is confirmed.
-    await new Promise((resolve) => setTimeout(resolve, AUTOSAVE_DELAY_MS + 50));
-    expect(syncSetLogsMutate).toHaveBeenCalledTimes(1);
+    unmount();
 
-    await fireEvent.press(screen.getByTestId('set-logging-cancel'));
-    fireEvent.press(screen.getByTestId('cancel-workout-confirm'));
-
-    // cancelSession must not run until the in-flight autosave it needs to outlive settles —
-    // otherwise a slow autosave response could land after cancel's delete and resurrect a row.
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    expect(cancelMutate).not.toHaveBeenCalled();
-
-    resolveSync();
-
-    await waitFor(() =>
-      expect(cancelMutate).toHaveBeenCalledWith(
-        'session-1',
-        expect.objectContaining({ onSuccess: expect.any(Function) }),
-      ),
-    );
-  });
-
-  it('ignores a second confirm tap while the first is still waiting out an in-flight autosave', async () => {
-    let resolveSync: () => void = () => {};
-    syncSetLogsMutate.mockImplementation(
-      () =>
-        new Promise<void>((resolve) => {
-          resolveSync = resolve;
-        }),
-    );
-
-    await render(
-      <SetLoggingScreen
-        userId="user-1"
-        sessionId="session-1"
-        onCancelled={jest.fn()}
-        onCompleted={jest.fn()}
-      />,
-    );
-
-    await fireEvent.press(screen.getByTestId('set-logging-pde-1-add-set'));
-    await fireEvent.changeText(screen.getByTestId('set-logging-pde-1-reps-0'), '10');
-    await new Promise((resolve) => setTimeout(resolve, AUTOSAVE_DELAY_MS + 50));
-
-    await fireEvent.press(screen.getByTestId('set-logging-cancel'));
-    // Two taps land in the window where cancelSession.isPending is still false (the mutate
-    // call hasn't started yet — handleConfirmCancel is still awaiting the in-flight sync).
-    // Fired together inside one act() so React doesn't treat them as two separately-tracked,
-    // overlapping act scopes — the first tap's handler is still mid-flight (pending on
-    // resolveSync below) when the second one dispatches.
-    await act(async () => {
-      fireEvent.press(screen.getByTestId('cancel-workout-confirm'));
-      fireEvent.press(screen.getByTestId('cancel-workout-confirm'));
-    });
-
-    resolveSync();
-
-    await waitFor(() => expect(cancelMutate).toHaveBeenCalledTimes(1));
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    expect(cancelMutate).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(syncSetLogsMutate).toHaveBeenCalledTimes(2));
   });
 
   it('shows the cancel sheet and cancels the session on confirm', async () => {
@@ -570,62 +436,12 @@ describe('SetLoggingScreen', () => {
     await fireEvent.press(screen.getByTestId('set-logging-cancel'));
     await fireEvent.press(screen.getByTestId('cancel-workout-confirm'));
 
-    await waitFor(() =>
-      expect(cancelMutate).toHaveBeenCalledWith(
-        'session-1',
-        expect.objectContaining({ onSuccess: expect.any(Function) }),
-      ),
+    expect(cancelMutate).toHaveBeenCalledWith(
+      'session-1',
+      expect.objectContaining({ onSuccess: expect.any(Function) }),
     );
     cancelMutate.mock.calls[0][1].onSuccess();
     expect(onCancelled).toHaveBeenCalled();
-  });
-
-  it('finishes and calls onCompleted when there is nothing to save', async () => {
-    const onCompleted = jest.fn();
-    await render(
-      <SetLoggingScreen
-        userId="user-1"
-        sessionId="session-1"
-        onCancelled={jest.fn()}
-        onCompleted={onCompleted}
-      />,
-    );
-
-    await fireEvent.press(screen.getByTestId('set-logging-finish'));
-
-    await waitFor(() => expect(completeMutate).toHaveBeenCalledWith('session-1'));
-    expect(onCompleted).toHaveBeenCalledWith('session-1');
-  });
-
-  it('shows a "Saving…" indicator while an autosave is in flight, hiding it once it settles', async () => {
-    let resolveSave: () => void = () => {};
-    syncSetLogsMutate.mockImplementation(
-      () =>
-        new Promise<void>((resolve) => {
-          resolveSave = resolve;
-        }),
-    );
-
-    await render(
-      <SetLoggingScreen
-        userId="user-1"
-        sessionId="session-1"
-        onCancelled={jest.fn()}
-        onCompleted={jest.fn()}
-      />,
-    );
-
-    expect(screen.queryByTestId('set-logging-saving')).toBeNull();
-
-    await fireEvent.press(screen.getByTestId('set-logging-pde-1-add-set'));
-    await fireEvent.changeText(screen.getByTestId('set-logging-pde-1-reps-0'), '10');
-    await new Promise((resolve) => setTimeout(resolve, AUTOSAVE_DELAY_MS + 50));
-
-    expect(screen.getByTestId('set-logging-saving')).toBeTruthy();
-
-    resolveSave();
-
-    await waitFor(() => expect(screen.queryByTestId('set-logging-saving')).toBeNull());
   });
 
   it('disables the finish button while saving is in flight', async () => {
@@ -646,7 +462,6 @@ describe('SetLoggingScreen', () => {
       />,
     );
 
-    await fireEvent.press(screen.getByTestId('set-logging-pde-1-add-set'));
     fireEvent.press(screen.getByTestId('set-logging-finish'));
 
     await waitFor(() =>
@@ -662,7 +477,7 @@ describe('SetLoggingScreen', () => {
     );
   });
 
-  it('shows an error and keeps the entered sets when saving fails', async () => {
+  it('shows an error and keeps the entered values when saving fails', async () => {
     syncSetLogsMutate.mockRejectedValueOnce(new Error('network error'));
 
     await render(
@@ -674,14 +489,12 @@ describe('SetLoggingScreen', () => {
       />,
     );
 
-    await fireEvent.press(screen.getByTestId('set-logging-pde-1-add-set'));
-    await fireEvent.changeText(screen.getByTestId('set-logging-pde-1-reps-0'), '10');
+    await fireEvent.changeText(screen.getByTestId('set-logging-pde-1-reps-0'), '12');
     await fireEvent.press(screen.getByTestId('set-logging-finish'));
 
     await waitFor(() => expect(screen.getByTestId('set-logging-finish-error')).toBeTruthy());
     expect(completeMutate).not.toHaveBeenCalled();
-    // The entered set is still there so the user can retry without re-typing.
-    expect(screen.getByTestId('set-logging-pde-1-reps-0').props.value).toBe('10');
+    expect(screen.getByTestId('set-logging-pde-1-reps-0').props.value).toBe('12');
   });
 
   it('shows an error when the sets saved fine but completing the session fails', async () => {
@@ -696,7 +509,6 @@ describe('SetLoggingScreen', () => {
       />,
     );
 
-    await fireEvent.press(screen.getByTestId('set-logging-pde-1-add-set'));
     await fireEvent.press(screen.getByTestId('set-logging-finish'));
 
     await waitFor(() => expect(screen.getByTestId('set-logging-finish-error')).toBeTruthy());

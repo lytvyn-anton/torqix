@@ -263,7 +263,8 @@ describe('getLastPerformedSets', () => {
       ],
       error: null,
     });
-    const orderDate = jest.fn().mockReturnValue({ order: orderSetIndex });
+    const orderCompletedAt = jest.fn().mockReturnValue({ order: orderSetIndex });
+    const orderDate = jest.fn().mockReturnValue({ order: orderCompletedAt });
     const eqStatus = jest.fn().mockReturnValue({ order: orderDate });
     const inExercise = jest.fn().mockReturnValue({ eq: eqStatus });
     const select = jest.fn().mockReturnValue({ in: inExercise });
@@ -274,6 +275,11 @@ describe('getLastPerformedSets', () => {
     expect(mockedFrom).toHaveBeenCalledWith('set_logs');
     expect(inExercise).toHaveBeenCalledWith('exercise_id', ['ex-1', 'ex-2']);
     expect(eqStatus).toHaveBeenCalledWith('workout_sessions.status', 'done');
+    // Tiebreaker for two "done" sessions sharing a scheduled_date.
+    expect(orderCompletedAt).toHaveBeenCalledWith('completed_at', {
+      foreignTable: 'workout_sessions',
+      ascending: false,
+    });
     expect(result).toEqual([
       { exerciseId: 'ex-1', setIndex: 0, repsDone: 10, weight: 45 },
       { exerciseId: 'ex-1', setIndex: 1, repsDone: 8, weight: 47.5 },

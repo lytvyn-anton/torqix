@@ -142,11 +142,16 @@ export async function getLastPerformedSets(exerciseIds: string[]): Promise<LogSe
   const { data, error } = await supabase
     .from('set_logs')
     .select(
-      'exercise_id, set_index, reps_done, weight, workout_session_id, workout_sessions!inner(scheduled_date, status)',
+      'exercise_id, set_index, reps_done, weight, workout_session_id, workout_sessions!inner(scheduled_date, completed_at, status)',
     )
     .in('exercise_id', exerciseIds)
     .eq('workout_sessions.status', 'done')
     .order('scheduled_date', { foreignTable: 'workout_sessions', ascending: false })
+    // Tiebreaker for two "done" sessions sharing a scheduled_date (a redo, or two program
+    // days completed the same day) — without it, which one counts as "last time" would be
+    // whatever order Postgres happens to return, not necessarily the one actually finished
+    // most recently.
+    .order('completed_at', { foreignTable: 'workout_sessions', ascending: false })
     .order('set_index', { ascending: true });
   if (error) throw error;
 
