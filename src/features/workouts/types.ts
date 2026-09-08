@@ -18,7 +18,9 @@ export type WorkoutSessionStatus = 'planned' | 'done' | 'skipped';
 
 export type WorkoutSession = {
   id: string;
-  programDayId: string;
+  // Nullable: ON DELETE SET NULL when the program day is deleted (e.g. the whole program was
+  // deleted) — the session row survives to keep history, but there's no day left to resume.
+  programDayId: string | null;
   programDayName: string;
   status: WorkoutSessionStatus;
 };

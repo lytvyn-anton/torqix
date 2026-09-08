@@ -2,6 +2,7 @@ import { fireEvent, screen, waitFor } from '@testing-library/react-native';
 
 import '../../../shared/i18n';
 import { renderWithProviders as render } from '../../../shared/testing/renderWithProviders';
+import { useAbandonOrphanedSession } from '../hooks/useAbandonOrphanedSession';
 import { useCancelSession } from '../hooks/useCancelSession';
 import { useCompleteSession } from '../hooks/useCompleteSession';
 import { useLastPerformedSets } from '../hooks/useLastPerformedSets';
@@ -18,6 +19,7 @@ jest.mock('../hooks/useLastPerformedSets', () => ({ useLastPerformedSets: jest.f
 jest.mock('../hooks/useSyncSetLogs', () => ({ useSyncSetLogs: jest.fn() }));
 jest.mock('../hooks/useCompleteSession', () => ({ useCompleteSession: jest.fn() }));
 jest.mock('../hooks/useCancelSession', () => ({ useCancelSession: jest.fn() }));
+jest.mock('../hooks/useAbandonOrphanedSession', () => ({ useAbandonOrphanedSession: jest.fn() }));
 
 const mockedUseWorkoutSession = jest.mocked(useWorkoutSession);
 const mockedUseProgramDayExercises = jest.mocked(useProgramDayExercises);
@@ -26,6 +28,7 @@ const mockedUseLastPerformedSets = jest.mocked(useLastPerformedSets);
 const mockedUseSyncSetLogs = jest.mocked(useSyncSetLogs);
 const mockedUseCompleteSession = jest.mocked(useCompleteSession);
 const mockedUseCancelSession = jest.mocked(useCancelSession);
+const mockedUseAbandonOrphanedSession = jest.mocked(useAbandonOrphanedSession);
 
 const exercises = [
   {
@@ -43,6 +46,7 @@ describe('SetLoggingScreen', () => {
   let syncSetLogsMutate: jest.Mock;
   let completeMutate: jest.Mock;
   let cancelMutate: jest.Mock;
+  let abandonMutate: jest.Mock;
 
   beforeEach(() => {
     mockedUseWorkoutSession.mockReturnValue({
@@ -84,6 +88,12 @@ describe('SetLoggingScreen', () => {
       mutate: cancelMutate,
       isPending: false,
     } as unknown as ReturnType<typeof useCancelSession>);
+    abandonMutate = jest.fn();
+    mockedUseAbandonOrphanedSession.mockReturnValue({
+      mutate: abandonMutate,
+      isPending: false,
+      isError: false,
+    } as unknown as ReturnType<typeof useAbandonOrphanedSession>);
   });
 
   it('shows a loading indicator while session/exercises/saved sets are loading', async () => {
@@ -532,5 +542,81 @@ describe('SetLoggingScreen', () => {
 
     await fireEvent.press(screen.getByTestId('set-logging-cancel'));
     expect(screen.getByTestId('cancel-workout-error')).toBeTruthy();
+  });
+
+  describe('when the session was orphaned by a deleted program', () => {
+    beforeEach(() => {
+      // program_day_id came back null (ON DELETE SET NULL) — getTodaySession auto-skips this
+      // before Today ever offers "Continue" for it, but the screen can still be reached
+      // directly (e.g. a stale route), and useProgramDayExercises stays disabled without a
+      // day id, so this has to be handled as its own state rather than falling through.
+      mockedUseWorkoutSession.mockReturnValue({
+        data: { id: 'session-1', programDayId: null, programDayName: '', status: 'planned' },
+        isLoading: false,
+        isError: false,
+      } as unknown as ReturnType<typeof useWorkoutSession>);
+      mockedUseProgramDayExercises.mockReturnValue({
+        data: undefined,
+        isLoading: false,
+        isError: false,
+      } as unknown as ReturnType<typeof useProgramDayExercises>);
+    });
+
+    it('shows a "program deleted" message instead of an empty exercise list', async () => {
+      await render(
+        <SetLoggingScreen
+          userId="user-1"
+          sessionId="session-1"
+          onCancelled={jest.fn()}
+          onCompleted={jest.fn()}
+        />,
+      );
+
+      expect(screen.getByTestId('set-logging-program-deleted')).toBeTruthy();
+      expect(screen.queryByTestId('set-logging-finish')).toBeNull();
+    });
+
+    it('abandons the orphaned session (preserving any logged sets) when the button is pressed', async () => {
+      const onCancelled = jest.fn();
+      await render(
+        <SetLoggingScreen
+          userId="user-1"
+          sessionId="session-1"
+          onCancelled={onCancelled}
+          onCompleted={jest.fn()}
+        />,
+      );
+
+      await fireEvent.press(screen.getByTestId('set-logging-program-deleted-cancel'));
+
+      // Not cancelMutate: this dead end must not delete already-logged sets the way a normal
+      // user-initiated cancel does — it uses the log-preserving abandon path instead.
+      expect(cancelMutate).not.toHaveBeenCalled();
+      expect(abandonMutate).toHaveBeenCalledWith(
+        'session-1',
+        expect.objectContaining({ onSuccess: expect.any(Function) }),
+      );
+      abandonMutate.mock.calls[0][1].onSuccess();
+      expect(onCancelled).toHaveBeenCalled();
+    });
+
+    it('shows an error when abandoning the orphaned session fails', async () => {
+      mockedUseAbandonOrphanedSession.mockReturnValue({
+        mutate: abandonMutate,
+        isPending: false,
+        isError: true,
+      } as unknown as ReturnType<typeof useAbandonOrphanedSession>);
+
+      await render(
+        <SetLoggingScreen
+          userId="user-1"
+          sessionId="session-1"
+          onCancelled={jest.fn()}
+          onCompleted={jest.fn()}
+        />,
+      );
+
+      expect(screen.getByTestId('set-logging-program-deleted-error')).toBeTruthy();
+    });
   });
 });
