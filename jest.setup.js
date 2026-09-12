@@ -6,6 +6,22 @@ jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
 );
 
+// Swipe-to-delete on set rows (SetLoggingScreen) uses ReanimatedSwipeable, whose real
+// implementation needs react-native-reanimated's native worklets runtime — not available
+// under Jest, and not something a unit test can meaningfully drive as an actual swipe
+// gesture anyway (same reasoning as the gifted-charts mock below). Stand in a plain View
+// that always renders both the row and its revealed delete action, which is what the tests
+// care about.
+jest.mock('react-native-gesture-handler/ReanimatedSwipeable', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  return {
+    __esModule: true,
+    default: ({ children, renderRightActions }) =>
+      React.createElement(View, null, children, renderRightActions?.()),
+  };
+});
+
 // SafeAreaProvider only resolves its children once real native measurement fires (needed
 // because RN's Modal opens a separate native window on iOS, so screens presented in a Modal
 // nest their own SafeAreaProvider rather than relying on the app-root one). That measurement

@@ -206,6 +206,58 @@ describe('SetLoggingScreen', () => {
     expect(screen.getByTestId('set-logging-pde-1-weight-3').props.value).toBe('40');
   });
 
+  it('removes exactly the deleted row, not a neighboring one', async () => {
+    await render(
+      <SetLoggingScreen
+        userId="user-1"
+        sessionId="session-1"
+        onCancelled={jest.fn()}
+        onCompleted={jest.fn()}
+      />,
+    );
+
+    // Distinct values per row so the assertions below can tell "row 1 specifically was
+    // removed" apart from "some row was removed" — the default target-based prefill leaves
+    // all three rows identical (10/40), which can't catch an off-by-one in the delete index.
+    await fireEvent.changeText(screen.getByTestId('set-logging-pde-1-reps-0'), '11');
+    await fireEvent.changeText(screen.getByTestId('set-logging-pde-1-reps-1'), '12');
+    await fireEvent.changeText(screen.getByTestId('set-logging-pde-1-reps-2'), '13');
+
+    await fireEvent.press(screen.getByTestId('set-logging-pde-1-delete-1'));
+
+    expect(screen.getByTestId('set-logging-pde-1-reps-0').props.value).toBe('11');
+    expect(screen.getByTestId('set-logging-pde-1-reps-1').props.value).toBe('13');
+    expect(screen.queryByTestId('set-logging-pde-1-reps-2')).toBeNull();
+  });
+
+  it('saves the remaining rows, renumbered, after deleting one', async () => {
+    await render(
+      <SetLoggingScreen
+        userId="user-1"
+        sessionId="session-1"
+        onCancelled={jest.fn()}
+        onCompleted={jest.fn()}
+      />,
+    );
+
+    await fireEvent.changeText(screen.getByTestId('set-logging-pde-1-reps-0'), '11');
+    await fireEvent.changeText(screen.getByTestId('set-logging-pde-1-reps-1'), '12');
+    await fireEvent.changeText(screen.getByTestId('set-logging-pde-1-reps-2'), '13');
+
+    await fireEvent.press(screen.getByTestId('set-logging-pde-1-delete-0'));
+    await fireEvent.press(screen.getByTestId('set-logging-finish'));
+
+    await waitFor(() =>
+      expect(syncSetLogsMutate).toHaveBeenCalledWith({
+        allExerciseIds: ['ex-1'],
+        inputs: [
+          { exerciseId: 'ex-1', setIndex: 0, repsDone: 12, weight: 40 },
+          { exerciseId: 'ex-1', setIndex: 1, repsDone: 13, weight: 40 },
+        ],
+      }),
+    );
+  });
+
   it('does not call the server while editing — only on finish', async () => {
     await render(
       <SetLoggingScreen
