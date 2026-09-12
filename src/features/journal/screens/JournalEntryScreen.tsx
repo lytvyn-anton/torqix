@@ -27,6 +27,8 @@ import { useCreateJournalEntry } from '../hooks/useCreateJournalEntry';
 import { useJournal } from '../hooks/useJournal';
 import { useLastPerformedJournalSets } from '../hooks/useLastPerformedJournalSets';
 import type { SetLogInput } from '../types';
+import { ExercisePickerScreen } from '../../exercises/screens/ExercisePickerScreen';
+import type { Exercise } from '../../exercises/types';
 import { useProgram } from '../../programs/hooks/useProgram';
 import type { ProgramDetailExercise } from '../../programs/types';
 import { TrashIcon } from '../../../shared/components/icons/TrashIcon';
@@ -89,6 +91,19 @@ function defaultDraft(
     id: makeDraftId(idCounter, idPrefix),
     reps: exercise.reps != null ? String(exercise.reps) : '',
     weight: exercise.targetWeight != null ? String(exercise.targetWeight) : '',
+  };
+}
+
+// An exercise added ad hoc (via the picker below), not one of the program day's predefined
+// ones — no target sets/reps/weight, since there's no plan behind it, just what actually
+// gets logged.
+function toAdHocExercise(exercise: Exercise): ProgramDetailExercise {
+  return {
+    exerciseId: exercise.id,
+    exerciseName: exercise.name,
+    sets: null,
+    reps: null,
+    targetWeight: null,
   };
 }
 
@@ -174,8 +189,20 @@ export function JournalEntryScreen({ userId, journalId, initialDayId }: Props) {
   const deleteSetLabel = t('journal.deleteSet');
 
   const journalQuery = useJournal(journalId);
+  // A program-less journal (never had one, or had one deleted out from under it — program_id
+  // is ON DELETE SET NULL) has no days to log against, but is still fully loggable: see the
+  // days.length === 0 handling below, which drops straight into a blank entry rather than a
+  // dead end. useProgram is disabled (enabled: !!programId) when there's nothing to fetch.
+  const hasProgram = journalQuery.data?.programId != null;
   const programQuery = useProgram(journalQuery.data?.programId ?? undefined);
   const createEntry = useCreateJournalEntry(userId);
+
+  // Neither journalQuery nor (when there's a program) programQuery has necessarily resolved
+  // yet on an early render — until they have, `days` below is indistinguishable from "no
+  // program has days" (both start out empty), so the initialization effect further down must
+  // not treat that as "nothing to wait for" and lock in a blank exercise list.
+  const queriesSettled =
+    journalQuery.data !== undefined && (!hasProgram || programQuery.data !== undefined);
 
   const days = programQuery.data?.days ?? [];
   const [selectedDayId, setSelectedDayId] = useState<string | null>(null);
@@ -191,13 +218,18 @@ export function JournalEntryScreen({ userId, journalId, initialDayId }: Props) {
     setSelectedDayId(days[0].id);
   }
   const selectedDay = days.find((day) => day.id === selectedDayId) ?? null;
-  const exercises = useMemo(() => selectedDay?.exercises ?? [], [selectedDay]);
-  const exerciseIds = useMemo(
-    () => Array.from(new Set(exercises.map((exercise) => exercise.exerciseId))),
-    [exercises],
+  const exerciseIdsForLastPerformed = useMemo(
+    () =>
+      Array.from(new Set((selectedDay?.exercises ?? []).map((exercise) => exercise.exerciseId))),
+    [selectedDay],
   );
-  const lastPerformedQuery = useLastPerformedJournalSets(exerciseIds);
+  const lastPerformedQuery = useLastPerformedJournalSets(exerciseIdsForLastPerformed);
 
+  // The exercise cards shown for this entry — seeded once from the selected day's predefined
+  // exercises (if any), then freely editable: "+ Add exercise" below appends to this same
+  // list, ad hoc, with no day or program behind the addition. State, not derived from
+  // selectedDay, precisely so an added exercise survives independently of it.
+  const [exercises, setExercises] = useState<ProgramDetailExercise[]>([]);
   // Nothing here is sent to the server as you type — everything currently in `drafts` is
   // saved in one request only when the user taps Save. Leaving any other way (back button,
   // gesture) with unsaved changes is caught by usePreventRemove below instead of silently
@@ -207,6 +239,7 @@ export function JournalEntryScreen({ userId, journalId, initialDayId }: Props) {
   const [isDirty, setIsDirty] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
   const [sheetVisible, setSheetVisible] = useState(false);
+  const [pickerVisible, setPickerVisible] = useState(false);
   const pendingActionRef = useRef<NavigationAction | null>(null);
 
   usePreventRemove(isDirty, ({ data }) => {
@@ -214,10 +247,22 @@ export function JournalEntryScreen({ userId, journalId, initialDayId }: Props) {
     setSheetVisible(true);
   });
 
-  if (!isInitialized && selectedDay && !lastPerformedQuery.isLoading) {
+  // Fires once either a day is picked (or auto-picked above) or there's nothing to pick from
+  // at all (a program-less journal, or a program with no days yet) — the latter starts from a
+  // blank exercise list rather than waiting forever on a day that will never be selected.
+  // Gated on queriesSettled so a still-loading journal/program (days=[] on every render until
+  // then) can't be mistaken for "no days" and lock in that blank list prematurely.
+  if (
+    !isInitialized &&
+    queriesSettled &&
+    (days.length === 0 || selectedDay) &&
+    !lastPerformedQuery.isLoading
+  ) {
     setIsInitialized(true);
     const idCounter = { current: 0 };
-    setDrafts(computeInitialDrafts(exercises, lastPerformedQuery.data ?? [], idCounter));
+    const initialExercises = selectedDay?.exercises ?? [];
+    setExercises(initialExercises);
+    setDrafts(computeInitialDrafts(initialExercises, lastPerformedQuery.data ?? [], idCounter));
   }
 
   const setDraftField = (
@@ -247,6 +292,12 @@ export function JournalEntryScreen({ userId, journalId, initialDayId }: Props) {
     if (!isDirty) setIsDirty(true);
     const rows = drafts[exerciseIndex] ?? [];
     setDrafts({ ...drafts, [exerciseIndex]: rows.filter((_, i) => i !== rowIndex) });
+  };
+
+  const handleAddExercise = (exercise: Exercise) => {
+    if (!isDirty) setIsDirty(true);
+    setExercises((current) => [...current, toAdHocExercise(exercise)]);
+    setPickerVisible(false);
   };
 
   // Completes whatever navigation was deferred by usePreventRemove (leaving via back
@@ -305,19 +356,7 @@ export function JournalEntryScreen({ userId, journalId, initialDayId }: Props) {
     );
   }
 
-  // The journal's program was deleted out from under it (program_id was SET NULL) — there's
-  // no day or exercises left to log against, so this is a dead end rather than an empty
-  // logging screen.
-  if (journalQuery.data.programId === null) {
-    return (
-      <View style={styles.centered} testID="journal-entry-orphaned">
-        <Text style={formStyles.screenTitle}>{t('journal.orphanedTitle')}</Text>
-        <Text style={styles.target}>{t('journal.orphanedBody')}</Text>
-      </View>
-    );
-  }
-
-  if (programQuery.isLoading) {
+  if (hasProgram && programQuery.isLoading) {
     return (
       <View style={styles.centered} testID="journal-entry-loading">
         <ActivityIndicator color={colors.accent} />
@@ -325,7 +364,7 @@ export function JournalEntryScreen({ userId, journalId, initialDayId }: Props) {
     );
   }
 
-  if (programQuery.isError || !programQuery.data) {
+  if (hasProgram && (programQuery.isError || !programQuery.data)) {
     return (
       <View style={styles.centered} testID="journal-entry-load-error">
         <Text style={formStyles.error}>{t('journal.loadError')}</Text>
@@ -333,16 +372,7 @@ export function JournalEntryScreen({ userId, journalId, initialDayId }: Props) {
     );
   }
 
-  if (days.length === 0) {
-    return (
-      <View style={styles.centered} testID="journal-entry-no-days">
-        <Text style={formStyles.screenTitle}>{t('journal.noDaysTitle')}</Text>
-        <Text style={styles.target}>{t('journal.noDaysBody')}</Text>
-      </View>
-    );
-  }
-
-  if (!selectedDay) {
+  if (days.length > 0 && !selectedDay) {
     return (
       <View style={styles.centered} testID="journal-entry-choose-day">
         <Text style={formStyles.screenTitle}>{t('journal.chooseDayTitle')}</Text>
@@ -380,7 +410,7 @@ export function JournalEntryScreen({ userId, journalId, initialDayId }: Props) {
   return (
     <>
       <ScrollView contentContainerStyle={styles.container}>
-        <Text style={formStyles.screenTitle}>{selectedDay.name}</Text>
+        <Text style={formStyles.screenTitle}>{selectedDay?.name ?? journalQuery.data.name}</Text>
 
         {exercises.map((exercise, exerciseIndex) => {
           const rows = drafts[exerciseIndex] ?? [];
@@ -405,11 +435,6 @@ export function JournalEntryScreen({ userId, journalId, initialDayId }: Props) {
                   <Text style={styles.progressLink}>{t('journal.viewProgress')}</Text>
                 </TouchableOpacity>
               </View>
-              {(exercise.sets != null || exercise.reps != null) && (
-                <Text style={styles.target}>
-                  {t('journal.target', { sets: exercise.sets ?? '—', reps: exercise.reps ?? '—' })}
-                </Text>
-              )}
 
               {rows.map((draft, rowIndex) => (
                 <Swipeable
@@ -465,6 +490,15 @@ export function JournalEntryScreen({ userId, journalId, initialDayId }: Props) {
           );
         })}
 
+        <TouchableOpacity
+          onPress={() => setPickerVisible(true)}
+          style={styles.addExerciseButton}
+          accessibilityRole="button"
+          testID="journal-entry-add-exercise"
+        >
+          <Text style={styles.rowButtonText}>{t('programs.addExercise')}</Text>
+        </TouchableOpacity>
+
         {createEntry.isError && (
           <Text style={formStyles.error} testID="journal-entry-save-error">
             {t('journal.saveError')}
@@ -481,6 +515,16 @@ export function JournalEntryScreen({ userId, journalId, initialDayId }: Props) {
           <Text style={formStyles.primaryButtonText}>{t('journal.save')}</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      <ExercisePickerScreen
+        // Remounts on every open/close (the key always passes through 'closed' in between),
+        // so each opening starts with a clean search/filter state — same reasoning as
+        // ProgramForm's use of this component.
+        key={pickerVisible ? 'open' : 'closed'}
+        visible={pickerVisible}
+        onSelect={handleAddExercise}
+        onClose={() => setPickerVisible(false)}
+      />
 
       <SaveDiscardSheet
         visible={sheetVisible}
@@ -531,10 +575,6 @@ function buildStyles(colors: ThemeColors) {
       fontSize: 12,
       fontWeight: '600',
     },
-    target: {
-      color: colors.textMuted,
-      fontSize: 12,
-    },
     setRow: {
       marginTop: spacing.xs,
     },
@@ -556,6 +596,9 @@ function buildStyles(colors: ThemeColors) {
     addSetButton: {
       alignSelf: 'flex-start',
       marginTop: spacing.xs,
+    },
+    addExerciseButton: {
+      alignSelf: 'flex-start',
     },
     rowButtonText: {
       color: colors.accentDark,
