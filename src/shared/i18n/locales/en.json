@@ -73,7 +73,7 @@
     "title": "Home",
     "emptyTitle": "No active program",
     "emptyBody": "Start a journal to begin tracking your workouts",
-    "activeProgramLabel": "Active program",
+    "journalLabel": "Journal",
     "noDays": "This program has no days set up yet.",
     "startJournalError": "Couldn't start your journal. Try again.",
     "loadError": "Couldn't load your program."

@@ -61,7 +61,7 @@ export function JournalWidgetCard({ userId, programId, programName }: Props) {
 
   return (
     <View style={[formStyles.glassSurface, styles.card]} testID="journal-widget-card">
-      <Text style={styles.eyebrow}>{t('home.activeProgramLabel')}</Text>
+      <Text style={styles.eyebrow}>{t('home.journalLabel')}</Text>
       <Text style={styles.programName}>{programName}</Text>
 
       {programQuery.isLoading && (
