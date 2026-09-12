@@ -5,6 +5,7 @@ import type {
   ExerciseSummary,
   Journal,
   JournalEntrySummary,
+  JournalSummary,
   SetLogInput,
 } from '../types';
 
@@ -90,22 +91,60 @@ export async function getLoggedExercises(userId: string): Promise<ExerciseSummar
 export async function getJournal(journalId: string): Promise<Journal> {
   const { data, error } = await supabase
     .from('journals')
-    .select('id, name, program_id, created_at')
+    .select('id, name, status, program_id, created_at')
     .eq('id', journalId)
     .single();
   if (error) throw error;
   return {
     id: data.id,
     name: data.name,
+    status: data.status,
     programId: data.program_id,
     createdAt: data.created_at,
   };
 }
 
-// The user's own journal for a given program, if one already exists — there's no unique
-// constraint on (user_id, program_id) at the DB level (a journal is a user-created notebook,
-// not an auto-provisioned one-per-program row), so this picks the most recently created one
-// when more than one happens to exist.
+// All of a user's own journals, newest first, each joined to its program's current name
+// (null once orphaned by a deleted program) — the Programs screen's Journals tab.
+export async function getJournals(userId: string): Promise<JournalSummary[]> {
+  const { data, error } = await supabase
+    .from('journals')
+    .select('id, name, status, created_at, workout_programs(name)')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data.map((row) => ({
+    id: row.id,
+    name: row.name,
+    status: row.status,
+    programName: (row.workout_programs as unknown as { name: string } | null)?.name ?? null,
+    createdAt: row.created_at,
+  }));
+}
+
+export async function setJournalStatus(
+  journalId: string,
+  status: 'active' | 'archived',
+): Promise<void> {
+  const { error } = await supabase.from('journals').update({ status }).eq('id', journalId);
+  if (error) throw error;
+}
+
+// Hard-deletes the journal; journal_entries and journal_entry_set_logs cascade away via
+// their FKs — unlike deleteProgram, which only detaches journals (program_id SET NULL)
+// rather than removing them, a deleted journal really does take its own history with it.
+export async function deleteJournal(journalId: string): Promise<void> {
+  const { error } = await supabase.from('journals').delete().eq('id', journalId);
+  if (error) throw error;
+}
+
+// The user's own active journal for a given program, if one already exists — there's no
+// unique constraint on (user_id, program_id) at the DB level (a journal is a user-created
+// notebook, not an auto-provisioned one-per-program row), so this picks the most recently
+// created one when more than one happens to exist. status='active' is deliberate: an
+// archived journal must not be silently picked back up and logged into the next time the
+// user starts a journal for this program (Home's JournalWidgetCard, ProgramDetailScreen's
+// "Start a journal") — resolveJournalForProgram below creates a fresh one instead.
 export async function getJournalForProgram(
   userId: string,
   programId: string,
@@ -115,6 +154,7 @@ export async function getJournalForProgram(
     .select('id')
     .eq('user_id', userId)
     .eq('program_id', programId)
+    .eq('status', 'active')
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();

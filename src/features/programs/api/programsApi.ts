@@ -198,6 +198,17 @@ export async function updateProgram(programId: string, input: CreateProgramInput
   }
 }
 
+// Manual "Set active"/"Archive program" action from the program detail screen — the last
+// piece of the fully-manual lifecycle now that createProgram no longer auto-archives
+// siblings (see its own comment below).
+export async function setProgramStatus(
+  programId: string,
+  status: 'active' | 'archived',
+): Promise<void> {
+  const { error } = await supabase.from('workout_programs').update({ status }).eq('id', programId);
+  if (error) throw error;
+}
+
 // Thrown by generateProgram when the caller's profile is missing a field the Edge Function
 // needs (goal, level, etc.) — distinguished from a generic failure so the screen can send
 // the user to complete their profile instead of showing a plain "try again" error.

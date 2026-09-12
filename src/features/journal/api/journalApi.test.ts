@@ -2,13 +2,16 @@ import { supabase } from '../../../shared/api/supabase';
 import {
   createJournal,
   createJournalEntry,
+  deleteJournal,
   getExerciseProgress,
   getJournal,
   getJournalEntries,
   getJournalForProgram,
+  getJournals,
   getLastPerformedJournalSets,
   getLoggedExercises,
   resolveJournalForProgram,
+  setJournalStatus,
 } from './journalApi';
 
 jest.mock('../../../shared/api/supabase', () => ({
@@ -179,6 +182,7 @@ describe('getJournal', () => {
       data: {
         id: 'journal-1',
         name: 'Push/Pull/Legs journal',
+        status: 'active',
         program_id: 'program-1',
         created_at: '2026-09-01T00:00:00Z',
       },
@@ -195,6 +199,7 @@ describe('getJournal', () => {
     expect(result).toEqual({
       id: 'journal-1',
       name: 'Push/Pull/Legs journal',
+      status: 'active',
       programId: 'program-1',
       createdAt: '2026-09-01T00:00:00Z',
     });
@@ -207,6 +212,109 @@ describe('getJournal', () => {
     } as never);
 
     await expect(getJournal('journal-1')).rejects.toBe(error);
+  });
+});
+
+describe('getJournals', () => {
+  it("lists the user's journals, newest first, with each program's current name", async () => {
+    const order = jest.fn().mockResolvedValue({
+      data: [
+        {
+          id: 'journal-1',
+          name: 'PPL journal',
+          status: 'active',
+          created_at: '2026-09-01T00:00:00Z',
+          workout_programs: { name: 'Push / Pull / Legs' },
+        },
+        {
+          id: 'journal-2',
+          name: 'Old journal',
+          status: 'archived',
+          created_at: '2026-01-01T00:00:00Z',
+          workout_programs: null,
+        },
+      ],
+      error: null,
+    });
+    const eqUser = jest.fn().mockReturnValue({ order });
+    const select = jest.fn().mockReturnValue({ eq: eqUser });
+    mockedFrom.mockReturnValue({ select } as never);
+
+    const result = await getJournals('user-1');
+
+    expect(mockedFrom).toHaveBeenCalledWith('journals');
+    expect(eqUser).toHaveBeenCalledWith('user_id', 'user-1');
+    expect(order).toHaveBeenCalledWith('created_at', { ascending: false });
+    expect(result).toEqual([
+      {
+        id: 'journal-1',
+        name: 'PPL journal',
+        status: 'active',
+        programName: 'Push / Pull / Legs',
+        createdAt: '2026-09-01T00:00:00Z',
+      },
+      {
+        id: 'journal-2',
+        name: 'Old journal',
+        status: 'archived',
+        programName: null,
+        createdAt: '2026-01-01T00:00:00Z',
+      },
+    ]);
+  });
+
+  it('throws the supabase error', async () => {
+    const error = new Error('rls denied');
+    mockedFrom.mockReturnValue({
+      select: () => ({ eq: () => ({ order: () => Promise.resolve({ data: null, error }) }) }),
+    } as never);
+
+    await expect(getJournals('user-1')).rejects.toBe(error);
+  });
+});
+
+describe('setJournalStatus', () => {
+  it('updates the journal status', async () => {
+    const eqId = jest.fn().mockResolvedValue({ error: null });
+    const update = jest.fn().mockReturnValue({ eq: eqId });
+    mockedFrom.mockReturnValue({ update } as never);
+
+    await setJournalStatus('journal-1', 'archived');
+
+    expect(mockedFrom).toHaveBeenCalledWith('journals');
+    expect(update).toHaveBeenCalledWith({ status: 'archived' });
+    expect(eqId).toHaveBeenCalledWith('id', 'journal-1');
+  });
+
+  it('throws the supabase error', async () => {
+    const error = new Error('rls denied');
+    mockedFrom.mockReturnValue({
+      update: () => ({ eq: () => Promise.resolve({ error }) }),
+    } as never);
+
+    await expect(setJournalStatus('journal-1', 'archived')).rejects.toBe(error);
+  });
+});
+
+describe('deleteJournal', () => {
+  it('deletes the journal by id', async () => {
+    const eqId = jest.fn().mockResolvedValue({ error: null });
+    const deleteFn = jest.fn().mockReturnValue({ eq: eqId });
+    mockedFrom.mockReturnValue({ delete: deleteFn } as never);
+
+    await deleteJournal('journal-1');
+
+    expect(mockedFrom).toHaveBeenCalledWith('journals');
+    expect(eqId).toHaveBeenCalledWith('id', 'journal-1');
+  });
+
+  it('throws the supabase error', async () => {
+    const error = new Error('rls denied');
+    mockedFrom.mockReturnValue({
+      delete: () => ({ eq: () => Promise.resolve({ error }) }),
+    } as never);
+
+    await expect(deleteJournal('journal-1')).rejects.toBe(error);
   });
 });
 
@@ -327,11 +435,12 @@ describe('getLastPerformedJournalSets', () => {
 });
 
 describe('getJournalForProgram', () => {
-  it("returns the user's most recently created journal for the program", async () => {
+  it("returns the user's most recently created active journal for the program", async () => {
     const maybeSingle = jest.fn().mockResolvedValue({ data: { id: 'journal-1' }, error: null });
     const limit = jest.fn().mockReturnValue({ maybeSingle });
     const orderCreatedAt = jest.fn().mockReturnValue({ limit });
-    const eqProgram = jest.fn().mockReturnValue({ order: orderCreatedAt });
+    const eqStatus = jest.fn().mockReturnValue({ order: orderCreatedAt });
+    const eqProgram = jest.fn().mockReturnValue({ eq: eqStatus });
     const eqUser = jest.fn().mockReturnValue({ eq: eqProgram });
     const select = jest.fn().mockReturnValue({ eq: eqUser });
     mockedFrom.mockReturnValue({ select } as never);
@@ -341,16 +450,19 @@ describe('getJournalForProgram', () => {
     expect(mockedFrom).toHaveBeenCalledWith('journals');
     expect(eqUser).toHaveBeenCalledWith('user_id', 'user-1');
     expect(eqProgram).toHaveBeenCalledWith('program_id', 'program-1');
+    expect(eqStatus).toHaveBeenCalledWith('status', 'active');
     expect(result).toEqual({ id: 'journal-1' });
   });
 
-  it('returns null when no journal exists for the program yet', async () => {
+  it('returns null when no active journal exists for the program yet', async () => {
     mockedFrom.mockReturnValue({
       select: () => ({
         eq: () => ({
           eq: () => ({
-            order: () => ({
-              limit: () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) }),
+            eq: () => ({
+              order: () => ({
+                limit: () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) }),
+              }),
             }),
           }),
         }),
@@ -368,8 +480,10 @@ describe('getJournalForProgram', () => {
       select: () => ({
         eq: () => ({
           eq: () => ({
-            order: () => ({
-              limit: () => ({ maybeSingle: () => Promise.resolve({ data: null, error }) }),
+            eq: () => ({
+              order: () => ({
+                limit: () => ({ maybeSingle: () => Promise.resolve({ data: null, error }) }),
+              }),
             }),
           }),
         }),
@@ -411,15 +525,17 @@ describe('createJournal', () => {
 });
 
 describe('resolveJournalForProgram', () => {
-  it('returns the existing journal without creating one', async () => {
+  it('returns the existing active journal without creating one', async () => {
     mockedFrom.mockClear();
     mockedFrom.mockReturnValue({
       select: () => ({
         eq: () => ({
           eq: () => ({
-            order: () => ({
-              limit: () => ({
-                maybeSingle: () => Promise.resolve({ data: { id: 'journal-1' }, error: null }),
+            eq: () => ({
+              order: () => ({
+                limit: () => ({
+                  maybeSingle: () => Promise.resolve({ data: { id: 'journal-1' }, error: null }),
+                }),
               }),
             }),
           }),
@@ -433,15 +549,19 @@ describe('resolveJournalForProgram', () => {
     expect(mockedFrom).toHaveBeenCalledTimes(1);
   });
 
-  it('creates a journal when none exists yet for this program', async () => {
+  it('creates a journal when no active one exists yet for this program (including when the only one is archived)', async () => {
     mockedFrom.mockImplementation(((table: string) => {
       if (table !== 'journals') throw new Error(`unexpected table ${table}`);
       return {
         select: () => ({
           eq: () => ({
             eq: () => ({
-              order: () => ({
-                limit: () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) }),
+              eq: () => ({
+                order: () => ({
+                  limit: () => ({
+                    maybeSingle: () => Promise.resolve({ data: null, error: null }),
+                  }),
+                }),
               }),
             }),
           }),

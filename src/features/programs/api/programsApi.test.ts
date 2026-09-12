@@ -9,6 +9,7 @@ import {
   getActiveProgram,
   getProgram,
   getPrograms,
+  setProgramStatus,
   updateProgram,
 } from './programsApi';
 
@@ -266,6 +267,29 @@ describe('deleteProgram', () => {
     mockedFrom.mockReturnValue({ delete: jest.fn().mockReturnValue({ eq }) } as never);
 
     await expect(deleteProgram('program-1')).rejects.toBe(error);
+  });
+});
+
+describe('setProgramStatus', () => {
+  it('updates the program status', async () => {
+    const eqId = jest.fn().mockResolvedValue({ error: null });
+    const update = jest.fn().mockReturnValue({ eq: eqId });
+    mockedFrom.mockReturnValue({ update } as never);
+
+    await setProgramStatus('program-1', 'archived');
+
+    expect(mockedFrom).toHaveBeenCalledWith('workout_programs');
+    expect(update).toHaveBeenCalledWith({ status: 'archived' });
+    expect(eqId).toHaveBeenCalledWith('id', 'program-1');
+  });
+
+  it('throws the supabase error', async () => {
+    const error = new Error('rls denied');
+    mockedFrom.mockReturnValue({
+      update: () => ({ eq: () => Promise.resolve({ error }) }),
+    } as never);
+
+    await expect(setProgramStatus('program-1', 'archived')).rejects.toBe(error);
   });
 });
 
