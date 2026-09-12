@@ -1,9 +1,8 @@
 import { useRouter } from 'expo-router';
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-import { NewJournalSheet } from '../../journal/components/NewJournalSheet';
 import { useResolveProgramJournal } from '../../journal/hooks/useResolveProgramJournal';
 import { useProgram } from '../../programs/hooks/useProgram';
 import type { ProgramDetailDay } from '../../programs/types';
@@ -15,21 +14,15 @@ type Props = {
   userId: string;
   programId: string;
   programName: string;
-  onGenerateProgram: () => void;
-  onCreateProgram: () => void;
 };
 
 // Replaces the old flat "Active program" card (just a name, no way to act on it) — this is
 // the Home tab's actual entry point into the Journal pivot: it shows the active program's
 // days and, tapping one, resolves (or creates, first time) that program's journal and drops
 // the user straight into logging against that day. See PLAN.md's Phase 5 section, PR 3/4.
-export function JournalWidgetCard({
-  userId,
-  programId,
-  programName,
-  onGenerateProgram,
-  onCreateProgram,
-}: Props) {
+// Starting a journal for a *different* (new) program is NewJournalButton, in the Home tab's
+// own header — not this card, which is scoped to the one active program.
+export function JournalWidgetCard({ userId, programId, programName }: Props) {
   const { t } = useTranslation();
   const router = useRouter();
   const { colors } = useTheme();
@@ -38,7 +31,6 @@ export function JournalWidgetCard({
 
   const programQuery = useProgram(programId);
   const resolveJournal = useResolveProgramJournal(userId);
-  const [sheetVisible, setSheetVisible] = useState(false);
   // A plain ref, not resolveJournal.isPending: that only flips after React commits the
   // re-render, so two taps on different day rows in the same tick (a mis-tap immediately
   // followed by the intended one) could both fire the mutation before either saw isPending —
@@ -69,19 +61,8 @@ export function JournalWidgetCard({
 
   return (
     <View style={[formStyles.glassSurface, styles.card]} testID="journal-widget-card">
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.eyebrow}>{t('home.activeProgramLabel')}</Text>
-          <Text style={styles.programName}>{programName}</Text>
-        </View>
-        <TouchableOpacity
-          onPress={() => setSheetVisible(true)}
-          accessibilityRole="button"
-          testID="journal-widget-new"
-        >
-          <Text style={styles.newJournalLink}>{t('home.newJournalCta')}</Text>
-        </TouchableOpacity>
-      </View>
+      <Text style={styles.eyebrow}>{t('home.activeProgramLabel')}</Text>
+      <Text style={styles.programName}>{programName}</Text>
 
       {programQuery.isLoading && (
         <View style={styles.centered} testID="journal-widget-loading">
@@ -108,7 +89,6 @@ export function JournalWidgetCard({
           testID={`journal-widget-day-${day.id}`}
         >
           <Text style={styles.dayName}>{day.name}</Text>
-          <Text style={styles.dayCta}>{t('home.logDay')}</Text>
         </TouchableOpacity>
       ))}
 
@@ -123,19 +103,6 @@ export function JournalWidgetCard({
           {t('home.startJournalError')}
         </Text>
       )}
-
-      <NewJournalSheet
-        visible={sheetVisible}
-        onGenerate={() => {
-          setSheetVisible(false);
-          onGenerateProgram();
-        }}
-        onCreateManually={() => {
-          setSheetVisible(false);
-          onCreateProgram();
-        }}
-        onClose={() => setSheetVisible(false)}
-      />
     </View>
   );
 }
@@ -147,11 +114,6 @@ function buildStyles(colors: ThemeColors) {
       padding: spacing.lg,
       gap: spacing.md,
       width: '100%',
-    },
-    header: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'flex-start',
     },
     eyebrow: {
       fontSize: 11,
@@ -167,19 +129,11 @@ function buildStyles(colors: ThemeColors) {
       color: colors.textPrimary,
       marginTop: spacing.xs,
     },
-    newJournalLink: {
-      color: colors.accentDark,
-      fontWeight: '600',
-      fontSize: 13,
-    },
     centered: {
       alignItems: 'center',
       paddingVertical: spacing.md,
     },
     dayRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
       backgroundColor: colors.surface,
       borderRadius: radii.md,
       borderWidth: 1,
@@ -191,11 +145,6 @@ function buildStyles(colors: ThemeColors) {
       color: colors.textPrimary,
       fontWeight: '600',
       fontSize: 14,
-    },
-    dayCta: {
-      color: colors.accentDark,
-      fontWeight: '600',
-      fontSize: 13,
     },
     noDays: {
       color: colors.textMuted,

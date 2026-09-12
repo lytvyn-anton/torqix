@@ -50,13 +50,7 @@ describe('JournalWidgetCard', () => {
 
   it('lists the active program’s days', async () => {
     await render(
-      <JournalWidgetCard
-        userId="user-1"
-        programId="program-1"
-        programName="Push / Pull / Legs"
-        onGenerateProgram={jest.fn()}
-        onCreateProgram={jest.fn()}
-      />,
+      <JournalWidgetCard userId="user-1" programId="program-1" programName="Push / Pull / Legs" />,
     );
 
     expect(screen.getByText('Push / Pull / Legs')).toBeTruthy();
@@ -72,13 +66,7 @@ describe('JournalWidgetCard', () => {
     } as unknown as ReturnType<typeof useProgram>);
 
     await render(
-      <JournalWidgetCard
-        userId="user-1"
-        programId="program-1"
-        programName="Push / Pull / Legs"
-        onGenerateProgram={jest.fn()}
-        onCreateProgram={jest.fn()}
-      />,
+      <JournalWidgetCard userId="user-1" programId="program-1" programName="Push / Pull / Legs" />,
     );
 
     expect(screen.queryByTestId('journal-widget-load-error')).toBeNull();
@@ -91,13 +79,7 @@ describe('JournalWidgetCard', () => {
     });
 
     await render(
-      <JournalWidgetCard
-        userId="user-1"
-        programId="program-1"
-        programName="Push / Pull / Legs"
-        onGenerateProgram={jest.fn()}
-        onCreateProgram={jest.fn()}
-      />,
+      <JournalWidgetCard userId="user-1" programId="program-1" programName="Push / Pull / Legs" />,
     );
 
     await fireEvent.press(screen.getByTestId('journal-widget-day-day-1'));
@@ -121,34 +103,12 @@ describe('JournalWidgetCard', () => {
     resolveMutate.mockImplementation(() => {});
 
     await render(
-      <JournalWidgetCard
-        userId="user-1"
-        programId="program-1"
-        programName="Push / Pull / Legs"
-        onGenerateProgram={jest.fn()}
-        onCreateProgram={jest.fn()}
-      />,
+      <JournalWidgetCard userId="user-1" programId="program-1" programName="Push / Pull / Legs" />,
     );
 
     await fireEvent.press(screen.getByTestId('journal-widget-day-day-1'));
     await fireEvent.press(screen.getByTestId('journal-widget-day-day-2'));
 
     expect(resolveMutate).toHaveBeenCalledTimes(1);
-  });
-
-  it('opens the new journal sheet from its header action', async () => {
-    await render(
-      <JournalWidgetCard
-        userId="user-1"
-        programId="program-1"
-        programName="Push / Pull / Legs"
-        onGenerateProgram={jest.fn()}
-        onCreateProgram={jest.fn()}
-      />,
-    );
-
-    await fireEvent.press(screen.getByTestId('journal-widget-new'));
-
-    expect(screen.getByTestId('new-journal-sheet-generate')).toBeTruthy();
   });
 });

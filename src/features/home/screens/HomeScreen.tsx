@@ -1,9 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useRouter } from 'expo-router';
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import { JournalWidgetCard } from '../components/JournalWidgetCard';
-import { NewJournalSheet } from '../../journal/components/NewJournalSheet';
 import { useActiveProgram } from '../../programs/hooks/useActiveProgram';
 import { ProgramsIcon } from '../../../shared/components/icons/TabIcons';
 import { useFormStyles } from '../../../shared/theme/formStyles';
@@ -12,17 +12,19 @@ import { fonts, spacing, type ThemeColors } from '../../../shared/theme/theme';
 
 type Props = {
   userId: string;
-  onCreateProgram: () => void;
-  onGenerateProgram: () => void;
 };
 
-export function HomeScreen({ userId, onCreateProgram, onGenerateProgram }: Props) {
+// No onCreateProgram/onGenerateProgram props (unlike the old TodayScreen this replaced) —
+// the always-visible way to start a *new* program's journal is NewJournalButton in the Home
+// tab's own header (app/(app)/(tabs)/_layout.tsx), not this screen; the empty-state CTAs
+// below route directly with `intent=journal`, mirroring ProgramsScreen's empty state.
+export function HomeScreen({ userId }: Props) {
   const { t } = useTranslation();
+  const router = useRouter();
   const activeProgramQuery = useActiveProgram(userId);
   const { colors } = useTheme();
   const formStyles = useFormStyles();
   const styles = useMemo(() => buildStyles(colors), [colors]);
-  const [sheetVisible, setSheetVisible] = useState(false);
 
   if (activeProgramQuery.isLoading) {
     return (
@@ -55,25 +57,19 @@ export function HomeScreen({ userId, onCreateProgram, onGenerateProgram }: Props
         <Text style={styles.emptyBody}>{t('home.emptyBody')}</Text>
         <TouchableOpacity
           style={[formStyles.primaryButton, styles.emptyCta]}
-          onPress={() => setSheetVisible(true)}
-          testID="home-new-journal"
+          onPress={() => router.push('/program-generate?intent=journal')}
+          testID="home-empty-generate-cta"
           accessibilityRole="button"
         >
-          <Text style={formStyles.primaryButtonText}>{t('home.newJournalCta')}</Text>
+          <Text style={formStyles.primaryButtonText}>{t('programs.generateSubmit')}</Text>
         </TouchableOpacity>
-
-        <NewJournalSheet
-          visible={sheetVisible}
-          onGenerate={() => {
-            setSheetVisible(false);
-            onGenerateProgram();
-          }}
-          onCreateManually={() => {
-            setSheetVisible(false);
-            onCreateProgram();
-          }}
-          onClose={() => setSheetVisible(false)}
-        />
+        <TouchableOpacity
+          onPress={() => router.push('/program-create?intent=journal')}
+          testID="home-empty-cta"
+          accessibilityRole="button"
+        >
+          <Text style={styles.emptyManualLink}>{t('programs.createManually')}</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -84,8 +80,6 @@ export function HomeScreen({ userId, onCreateProgram, onGenerateProgram }: Props
         userId={userId}
         programId={activeProgram.id}
         programName={activeProgram.name}
-        onGenerateProgram={onGenerateProgram}
-        onCreateProgram={onCreateProgram}
       />
     </View>
   );
@@ -134,6 +128,12 @@ function buildStyles(colors: ThemeColors) {
     emptyCta: {
       paddingVertical: spacing.md,
       paddingHorizontal: spacing.xl,
+      marginTop: spacing.sm,
+    },
+    emptyManualLink: {
+      color: colors.accentDark,
+      fontWeight: '600',
+      fontSize: 13,
       marginTop: spacing.sm,
     },
   });
