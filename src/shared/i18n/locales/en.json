@@ -144,6 +144,7 @@
   },
   "journal": {
     "title": "Journal",
+    "newJournalTitle": "Start a journal",
     "newEntryTitle": "New entry",
     "loadError": "Couldn't load this journal.",
     "newEntry": "+ New entry",

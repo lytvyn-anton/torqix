@@ -1,11 +1,14 @@
 import { supabase } from '../../../shared/api/supabase';
 import {
+  createJournal,
   createJournalEntry,
   getExerciseProgress,
   getJournal,
   getJournalEntries,
+  getJournalForProgram,
   getLastPerformedJournalSets,
   getLoggedExercises,
+  resolveJournalForProgram,
 } from './journalApi';
 
 jest.mock('../../../shared/api/supabase', () => ({
@@ -320,6 +323,145 @@ describe('getLastPerformedJournalSets', () => {
     } as never);
 
     await expect(getLastPerformedJournalSets(['ex-1'])).rejects.toBe(error);
+  });
+});
+
+describe('getJournalForProgram', () => {
+  it("returns the user's most recently created journal for the program", async () => {
+    const maybeSingle = jest.fn().mockResolvedValue({ data: { id: 'journal-1' }, error: null });
+    const limit = jest.fn().mockReturnValue({ maybeSingle });
+    const orderCreatedAt = jest.fn().mockReturnValue({ limit });
+    const eqProgram = jest.fn().mockReturnValue({ order: orderCreatedAt });
+    const eqUser = jest.fn().mockReturnValue({ eq: eqProgram });
+    const select = jest.fn().mockReturnValue({ eq: eqUser });
+    mockedFrom.mockReturnValue({ select } as never);
+
+    const result = await getJournalForProgram('user-1', 'program-1');
+
+    expect(mockedFrom).toHaveBeenCalledWith('journals');
+    expect(eqUser).toHaveBeenCalledWith('user_id', 'user-1');
+    expect(eqProgram).toHaveBeenCalledWith('program_id', 'program-1');
+    expect(result).toEqual({ id: 'journal-1' });
+  });
+
+  it('returns null when no journal exists for the program yet', async () => {
+    mockedFrom.mockReturnValue({
+      select: () => ({
+        eq: () => ({
+          eq: () => ({
+            order: () => ({
+              limit: () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) }),
+            }),
+          }),
+        }),
+      }),
+    } as never);
+
+    const result = await getJournalForProgram('user-1', 'program-1');
+
+    expect(result).toBeNull();
+  });
+
+  it('throws the supabase error', async () => {
+    const error = new Error('rls denied');
+    mockedFrom.mockReturnValue({
+      select: () => ({
+        eq: () => ({
+          eq: () => ({
+            order: () => ({
+              limit: () => ({ maybeSingle: () => Promise.resolve({ data: null, error }) }),
+            }),
+          }),
+        }),
+      }),
+    } as never);
+
+    await expect(getJournalForProgram('user-1', 'program-1')).rejects.toBe(error);
+  });
+});
+
+describe('createJournal', () => {
+  it('inserts a journal for the program', async () => {
+    const single = jest.fn().mockResolvedValue({ data: { id: 'journal-1' }, error: null });
+    const select = jest.fn().mockReturnValue({ single });
+    const insert = jest.fn().mockReturnValue({ select });
+    mockedFrom.mockReturnValue({ insert } as never);
+
+    const result = await createJournal('user-1', { programId: 'program-1', name: 'PPL' });
+
+    expect(mockedFrom).toHaveBeenCalledWith('journals');
+    expect(insert).toHaveBeenCalledWith({
+      user_id: 'user-1',
+      program_id: 'program-1',
+      name: 'PPL',
+    });
+    expect(result).toEqual({ id: 'journal-1' });
+  });
+
+  it('throws the supabase error', async () => {
+    const error = new Error('rls denied');
+    mockedFrom.mockReturnValue({
+      insert: () => ({ select: () => ({ single: () => Promise.resolve({ data: null, error }) }) }),
+    } as never);
+
+    await expect(createJournal('user-1', { programId: 'program-1', name: 'PPL' })).rejects.toBe(
+      error,
+    );
+  });
+});
+
+describe('resolveJournalForProgram', () => {
+  it('returns the existing journal without creating one', async () => {
+    mockedFrom.mockClear();
+    mockedFrom.mockReturnValue({
+      select: () => ({
+        eq: () => ({
+          eq: () => ({
+            order: () => ({
+              limit: () => ({
+                maybeSingle: () => Promise.resolve({ data: { id: 'journal-1' }, error: null }),
+              }),
+            }),
+          }),
+        }),
+      }),
+    } as never);
+
+    const result = await resolveJournalForProgram('user-1', 'program-1', 'PPL');
+
+    expect(result).toEqual({ id: 'journal-1' });
+    expect(mockedFrom).toHaveBeenCalledTimes(1);
+  });
+
+  it('creates a journal when none exists yet for this program', async () => {
+    mockedFrom.mockImplementation(((table: string) => {
+      if (table !== 'journals') throw new Error(`unexpected table ${table}`);
+      return {
+        select: () => ({
+          eq: () => ({
+            eq: () => ({
+              order: () => ({
+                limit: () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) }),
+              }),
+            }),
+          }),
+        }),
+        insert: (row: Record<string, unknown>) => ({
+          select: () => ({
+            single: () => Promise.resolve({ data: { id: 'journal-new', ...row }, error: null }),
+          }),
+        }),
+      };
+    }) as never);
+
+    const result = await resolveJournalForProgram('user-1', 'program-1', 'PPL');
+
+    expect(result).toEqual({
+      id: 'journal-new',
+      user_id: 'user-1',
+      program_id: 'program-1',
+      name: 'PPL',
+    });
   });
 });
 

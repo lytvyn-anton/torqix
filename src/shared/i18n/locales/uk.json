@@ -144,6 +144,7 @@
   },
   "journal": {
     "title": "Щоденник",
+    "newJournalTitle": "Почати щоденник",
     "newEntryTitle": "Новий запис",
     "loadError": "Не вдалося завантажити щоденник.",
     "newEntry": "+ Новий запис",
