@@ -41,7 +41,7 @@ export function ProgramsScreen({ userId }: Props) {
   }
 
   // Only treat this as a fatal load failure when we've never had data (first load) — see
-  // TodayScreen for the same guard against discarding an already-loaded list on a
+  // HomeScreen for the same guard against discarding an already-loaded list on a
   // background refetch error.
   if (programsQuery.isError && programsQuery.data === undefined) {
     return (

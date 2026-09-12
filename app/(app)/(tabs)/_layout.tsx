@@ -18,8 +18,8 @@ import { SettingsButton } from '../../../src/features/settings/components/Settin
 import { Background } from '../../../src/shared/components/Background';
 import {
   CoachIcon,
+  HomeIcon,
   ProgramsIcon,
-  TodayIcon,
   TrendingUpIcon,
   type TabIconProps,
 } from '../../../src/shared/components/icons/TabIcons';
@@ -48,7 +48,7 @@ const TABS: {
   Icon: (props: TabIconProps) => ReactNode;
   headerRight?: () => ReactNode;
 }[] = [
-  { name: 'index', titleKey: 'today.title', Icon: TodayIcon },
+  { name: 'index', titleKey: 'home.title', Icon: HomeIcon },
   {
     name: 'programs',
     titleKey: 'programs.title',

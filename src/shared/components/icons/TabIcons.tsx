@@ -9,7 +9,7 @@ export type TabIconProps = {
   size: number;
 };
 
-export function TodayIcon({ color, size }: TabIconProps) {
+export function HomeIcon({ color, size }: TabIconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Path

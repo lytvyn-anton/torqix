@@ -102,6 +102,54 @@ export async function getJournal(journalId: string): Promise<Journal> {
   };
 }
 
+// The user's own journal for a given program, if one already exists — there's no unique
+// constraint on (user_id, program_id) at the DB level (a journal is a user-created notebook,
+// not an auto-provisioned one-per-program row), so this picks the most recently created one
+// when more than one happens to exist.
+export async function getJournalForProgram(
+  userId: string,
+  programId: string,
+): Promise<{ id: string } | null> {
+  const { data, error } = await supabase
+    .from('journals')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('program_id', programId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function createJournal(
+  userId: string,
+  input: { programId: string | null; name: string },
+): Promise<{ id: string }> {
+  const { data, error } = await supabase
+    .from('journals')
+    .insert({ user_id: userId, program_id: input.programId, name: input.name })
+    .select('id')
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+// Tapping a day on the Home journal card shouldn't ask the user to name anything or care
+// whether this program already has a journal — it just resolves to "the" journal for this
+// program, creating one (named after the program) the first time. Two sequential requests
+// rather than one round trip: same reasoning as createJournalEntry above, no client-side
+// transaction API to fall back on.
+export async function resolveJournalForProgram(
+  userId: string,
+  programId: string,
+  programName: string,
+): Promise<{ id: string }> {
+  const existing = await getJournalForProgram(userId, programId);
+  if (existing) return existing;
+  return createJournal(userId, { programId, name: programName });
+}
+
 // A journal's own saved entries, most recent first — the notebook's list screen.
 // program_day_id is nullable (ON DELETE SET NULL) so the embedded join can legitimately
 // come back null, same as the old workout_sessions/program_days relationship.
