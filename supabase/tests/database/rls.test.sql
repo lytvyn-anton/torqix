@@ -28,13 +28,16 @@ insert into public.exercises (id, name, created_by_user_id) values
 insert into public.exercises (id, name) values
   ('30000000-0000-0000-0000-000000000002', 'Global Squat');
 
-insert into public.workout_sessions (id, user_id, program_day_id, scheduled_date) values
-  ('40000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-00000000000a', '20000000-0000-0000-0000-000000000001', current_date);
+insert into public.journals (id, user_id, program_id, name) values
+  ('40000000-0000-0000-0000-000000000000', 'a0000000-0000-0000-0000-00000000000a', '10000000-0000-0000-0000-000000000001', 'Alice Journal');
+
+insert into public.journal_entries (id, journal_id, user_id, program_day_id, entry_date) values
+  ('40000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000000', 'a0000000-0000-0000-0000-00000000000a', '20000000-0000-0000-0000-000000000001', current_date);
 
 insert into public.program_day_exercises (id, program_day_id, exercise_id, order_index) values
   ('50000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000002', 1);
 
-insert into public.set_logs (id, workout_session_id, exercise_id, set_index) values
+insert into public.journal_entry_set_logs (id, journal_entry_id, exercise_id, set_index) values
   ('60000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000002', 1);
 
 -- Table owner bypasses RLS, so this constraint check has to run before we switch role.
@@ -82,24 +85,24 @@ select is(
 );
 
 select throws_ok(
-  $$insert into public.workout_sessions (user_id, program_day_id, scheduled_date)
-    values ('b0000000-0000-0000-0000-00000000000b', '20000000-0000-0000-0000-000000000001', current_date)$$,
+  $$insert into public.journal_entries (journal_id, user_id, program_day_id, entry_date)
+    values ('40000000-0000-0000-0000-000000000000', 'b0000000-0000-0000-0000-00000000000b', '20000000-0000-0000-0000-000000000001', current_date)$$,
   '42501',
   null,
-  'Bob cannot schedule a session on Alice''s program day'
+  'Bob cannot log a journal entry against Alice''s journal'
 );
 
 -- An UPDATE whose USING clause excludes the target row matches zero rows and succeeds
 -- silently (no exception) — RLS makes it invisible, not an error. Verify by switching back
 -- to the (RLS-exempt) table owner and confirming the value didn't move.
 
-update public.workout_sessions set status = 'skipped'
+update public.journal_entries set entry_date = current_date + 1
   where id = '40000000-0000-0000-0000-000000000001';
 reset role;
 select is(
-  (select status from public.workout_sessions where id = '40000000-0000-0000-0000-000000000001'),
-  'planned',
-  'Bob''s update to Alice''s workout session matches zero rows (status unchanged)'
+  (select entry_date from public.journal_entries where id = '40000000-0000-0000-0000-000000000001'),
+  current_date,
+  'Bob''s update to Alice''s journal entry matches zero rows (entry_date unchanged)'
 );
 set local role authenticated;
 select set_config('request.jwt.claim.sub', 'b0000000-0000-0000-0000-00000000000b', true);
@@ -115,13 +118,13 @@ select is(
 set local role authenticated;
 select set_config('request.jwt.claim.sub', 'b0000000-0000-0000-0000-00000000000b', true);
 
-update public.set_logs set reps_done = 12
+update public.journal_entry_set_logs set reps_done = 12
   where id = '60000000-0000-0000-0000-000000000001';
 reset role;
 select is(
-  (select reps_done from public.set_logs where id = '60000000-0000-0000-0000-000000000001'),
+  (select reps_done from public.journal_entry_set_logs where id = '60000000-0000-0000-0000-000000000001'),
   null::smallint,
-  'Bob''s update to a set log on Alice''s workout session matches zero rows (reps_done unchanged)'
+  'Bob''s update to a set log on Alice''s journal entry matches zero rows (reps_done unchanged)'
 );
 set local role authenticated;
 select set_config('request.jwt.claim.sub', 'b0000000-0000-0000-0000-00000000000b', true);
@@ -160,15 +163,15 @@ select throws_ok(
 select set_config('request.jwt.claim.sub', 'a0000000-0000-0000-0000-00000000000a', true);
 
 select lives_ok(
-  $$insert into public.workout_sessions (user_id, program_day_id, scheduled_date)
-    values ('a0000000-0000-0000-0000-00000000000a', '20000000-0000-0000-0000-000000000001', current_date + 1)$$,
-  'Alice can schedule a session on her own program day'
+  $$insert into public.journal_entries (journal_id, user_id, program_day_id, entry_date)
+    values ('40000000-0000-0000-0000-000000000000', 'a0000000-0000-0000-0000-00000000000a', '20000000-0000-0000-0000-000000000001', current_date + 1)$$,
+  'Alice can log a journal entry on her own program day'
 );
 
 select lives_ok(
-  $$update public.workout_sessions set status = 'skipped'
+  $$update public.journal_entries set entry_date = current_date + 2
     where id = '40000000-0000-0000-0000-000000000001'$$,
-  'Alice can update her own workout session'
+  'Alice can update her own journal entry'
 );
 
 select throws_ok(
@@ -180,17 +183,17 @@ select throws_ok(
 );
 
 -- Editing a program can never silently destroy logged history: deleting a program_day
--- that still has a workout_session against it succeeds, and the session survives with its
+-- that still has a journal_entry against it succeeds, and the entry survives with its
 -- program_day_id cleared rather than being cascade-deleted.
 select lives_ok(
   $$delete from public.program_days where id = '20000000-0000-0000-0000-000000000001'$$,
-  'Alice can delete a program day that still has a workout session logged against it'
+  'Alice can delete a program day that still has a journal entry logged against it'
 );
 
 select is(
-  (select program_day_id from public.workout_sessions where id = '40000000-0000-0000-0000-000000000001'),
+  (select program_day_id from public.journal_entries where id = '40000000-0000-0000-0000-000000000001'),
   null::uuid,
-  'The workout session survives the program day deletion, with program_day_id cleared'
+  'The journal entry survives the program day deletion, with program_day_id cleared'
 );
 
 select * from finish();

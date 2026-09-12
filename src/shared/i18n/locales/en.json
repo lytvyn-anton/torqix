@@ -75,10 +75,7 @@
     "emptyBody": "Create your first program to see today's workout here",
     "emptyCta": "Create Your First Program",
     "activeProgramLabel": "Active program",
-    "loadError": "Couldn't load your program.",
-    "chooseDayTitle": "What are you training today?",
-    "continueWorkout": "Continue workout",
-    "startError": "Couldn't start the workout. Try again."
+    "loadError": "Couldn't load your program."
   },
   "programs": {
     "title": "Programs",
@@ -120,7 +117,7 @@
     "delete": "Delete",
     "weightUnit": "kg",
     "deleteSheetTitle": "Delete this program?",
-    "deleteSheetBody": "This can't be undone. Workout history for this program will be kept.",
+    "deleteSheetBody": "This can't be undone. Journal history for this program will be kept.",
     "deleteSheetConfirm": "Delete program",
     "deleteSheetKeepGoing": "Keep it",
     "deleteError": "Couldn't delete the program. Try again."
@@ -144,37 +141,6 @@
       "calves": "Calves",
       "full_body": "Full body"
     }
-  },
-  "workouts": {
-    "cancel": "Cancel",
-    "finish": "Finish workout",
-    "loadError": "Couldn't load this workout.",
-    "addSet": "+ Add set",
-    "deleteSet": "Delete set",
-    "finishError": "Couldn't finish the workout. Try again.",
-    "cancelError": "Couldn't cancel the workout. Try again.",
-    "repsPlaceholder": "Reps",
-    "weightPlaceholder": "kg",
-    "target": "Target: {{sets}} × {{reps}}",
-    "viewProgress": "Progress",
-    "cancelSheetTitle": "Cancel this workout?",
-    "cancelSheetBody": "Any sets you've entered this workout won't be saved.",
-    "cancelSheetConfirm": "Cancel workout",
-    "cancelSheetKeepGoing": "Keep going",
-    "completeTitle": "Workout complete!",
-    "completeBody": "{{count}} sets logged for {{day}}.",
-    "completeDone": "Done",
-    "programDeletedTitle": "Program deleted",
-    "programDeletedBody": "The program this workout belonged to was deleted, so there's nothing left to log here.",
-    "programDeletedCta": "Back to Today"
-  },
-  "history": {
-    "title": "History",
-    "loadError": "Couldn't load your workout history.",
-    "emptyTitle": "No workouts yet",
-    "emptyBody": "Finish a workout to see it here.",
-    "statusDone": "Done",
-    "statusSkipped": "Skipped"
   },
   "progress": {
     "title": "Progress",

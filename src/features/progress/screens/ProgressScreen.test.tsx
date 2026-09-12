@@ -6,10 +6,10 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import '../../../shared/i18n';
 import { ThemeProvider } from '../../../shared/theme/ThemeProvider';
-import { useLoggedExercises } from '../../workouts/hooks/useLoggedExercises';
+import { useLoggedExercises } from '../../journal/hooks/useLoggedExercises';
 import { ProgressScreen } from './ProgressScreen';
 
-jest.mock('../../workouts/hooks/useLoggedExercises', () => ({ useLoggedExercises: jest.fn() }));
+jest.mock('../../journal/hooks/useLoggedExercises', () => ({ useLoggedExercises: jest.fn() }));
 jest.mock('expo-router', () => ({ useRouter: jest.fn() }));
 
 const mockedUseLoggedExercises = jest.mocked(useLoggedExercises);
@@ -84,8 +84,8 @@ describe('ProgressScreen', () => {
         {
           exerciseId: 'exercise-1',
           exerciseName: 'Bench Press',
-          lastScheduledDate: '2026-09-01',
-          lastSessionSetCount: 4,
+          lastEntryDate: '2026-09-01',
+          lastEntrySetCount: 4,
         },
       ],
     } as unknown as ReturnType<typeof useLoggedExercises>);
@@ -106,8 +106,8 @@ describe('ProgressScreen', () => {
         {
           exerciseId: 'exercise-1',
           exerciseName: 'Bench Press',
-          lastScheduledDate: '2026-09-01',
-          lastSessionSetCount: 4,
+          lastEntryDate: '2026-09-01',
+          lastEntrySetCount: 4,
         },
       ],
     } as unknown as ReturnType<typeof useLoggedExercises>);

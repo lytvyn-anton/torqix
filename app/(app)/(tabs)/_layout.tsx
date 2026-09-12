@@ -18,7 +18,6 @@ import { SettingsButton } from '../../../src/features/settings/components/Settin
 import { Background } from '../../../src/shared/components/Background';
 import {
   CoachIcon,
-  HistoryIcon,
   ProgramsIcon,
   TodayIcon,
   TrendingUpIcon,
@@ -63,7 +62,6 @@ const TABS: {
     ),
   },
   { name: 'progress', titleKey: 'progressTab.title', Icon: TrendingUpIcon },
-  { name: 'history', titleKey: 'history.title', Icon: HistoryIcon },
   { name: 'coach', titleKey: 'coach.title', Icon: CoachIcon },
 ];
 

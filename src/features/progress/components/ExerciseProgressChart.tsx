@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { LineChart } from 'react-native-gifted-charts';
 
-import type { ExerciseProgressEntry } from '../../workouts/types';
+import type { ExerciseProgressEntry } from '../../journal/types';
 import { useTheme } from '../../../shared/theme/ThemeProvider';
 import { radii, spacing, type ThemeColors } from '../../../shared/theme/theme';
 import { buildExerciseProgressChartData, type ChartPoint } from '../utils/exerciseProgressChart';

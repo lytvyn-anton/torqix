@@ -1,4 +1,4 @@
-import type { ExerciseProgressEntry } from '../../workouts/types';
+import type { ExerciseProgressEntry } from '../../journal/types';
 import { formatUtcDate } from '../../../shared/utils/formatUtcDate';
 
 export type ChartPoint = {
@@ -17,9 +17,9 @@ export function buildExerciseProgressChartData(
 ): { topSet: ChartPoint[]; volume: ChartPoint[] } {
   const setsByDate = new Map<string, ExerciseProgressEntry[]>();
   for (const entry of entries) {
-    const sets = setsByDate.get(entry.scheduledDate) ?? [];
+    const sets = setsByDate.get(entry.entryDate) ?? [];
     sets.push(entry);
-    setsByDate.set(entry.scheduledDate, sets);
+    setsByDate.set(entry.entryDate, sets);
   }
 
   const dates = [...setsByDate.keys()].sort();

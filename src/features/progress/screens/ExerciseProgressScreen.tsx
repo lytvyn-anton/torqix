@@ -2,8 +2,8 @@ import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
 
-import { useExerciseProgress } from '../../workouts/hooks/useExerciseProgress';
-import type { ExerciseProgressEntry } from '../../workouts/types';
+import { useExerciseProgress } from '../../journal/hooks/useExerciseProgress';
+import type { ExerciseProgressEntry } from '../../journal/types';
 import { ExerciseProgressChart } from '../components/ExerciseProgressChart';
 import { useFormStyles } from '../../../shared/theme/formStyles';
 import { useTheme } from '../../../shared/theme/ThemeProvider';
@@ -70,9 +70,9 @@ function EntryRow({ entry, locale }: { entry: ExerciseProgressEntry; locale: str
 
   return (
     <View style={styles.row} testID={`exercise-progress-row-${entry.id}`}>
-      {/* scheduled_date is a plain calendar date with no time component — UTC keeps it from
+      {/* entry_date is a plain calendar date with no time component — UTC keeps it from
           shifting a day either way in the device's local zone. */}
-      <Text style={styles.date}>{formatUtcDate(entry.scheduledDate, locale)}</Text>
+      <Text style={styles.date}>{formatUtcDate(entry.entryDate, locale)}</Text>
       <Text style={styles.detail}>
         {t('progress.setEntry', {
           index: entry.setIndex + 1,

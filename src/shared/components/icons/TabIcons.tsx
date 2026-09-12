@@ -1,5 +1,5 @@
 import type { ColorValue } from 'react-native';
-import { Path, Circle, Svg } from 'react-native-svg';
+import { Path, Svg } from 'react-native-svg';
 
 // Stroke-based line icons matching the Phase 2 design canvas (24px viewBox, round caps/joins,
 // 1.8 stroke width) — used by the tab bar, so they take the active/inactive tint as `color`.
@@ -38,21 +38,6 @@ export function ProgramsIcon({ color, size }: TabIconProps) {
       <Path d="M4 12h16" stroke={color} strokeWidth={1.8} strokeLinecap="round" />
       <Path d="M7 7v10" stroke={color} strokeWidth={1.8} strokeLinecap="round" />
       <Path d="M17 7v10" stroke={color} strokeWidth={1.8} strokeLinecap="round" />
-    </Svg>
-  );
-}
-
-export function HistoryIcon({ color, size }: TabIconProps) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Circle cx={12} cy={12} r={8.5} stroke={color} strokeWidth={1.8} />
-      <Path
-        d="M12 7.5V12l3 2"
-        stroke={color}
-        strokeWidth={1.8}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
     </Svg>
   );
 }

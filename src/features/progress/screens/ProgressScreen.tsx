@@ -10,8 +10,8 @@ import {
   View,
 } from 'react-native';
 
-import { useLoggedExercises } from '../../workouts/hooks/useLoggedExercises';
-import type { ExerciseSummary } from '../../workouts/types';
+import { useLoggedExercises } from '../../journal/hooks/useLoggedExercises';
+import type { ExerciseSummary } from '../../journal/types';
 import { TrendingUpIcon } from '../../../shared/components/icons/TabIcons';
 import { useFloatingTabBarClearance } from '../../../shared/hooks/useFloatingTabBarClearance';
 import { useTheme } from '../../../shared/theme/ThemeProvider';
@@ -105,10 +105,10 @@ function ExerciseRow({
       <Text style={styles.name}>{exercise.exerciseName}</Text>
       <Text style={styles.meta}>
         {t('progressTab.lastPerformed', {
-          // scheduled_date is a plain calendar date with no time component — UTC keeps it
-          // from shifting a day either way in the device's local zone.
-          date: formatUtcDate(exercise.lastScheduledDate, locale),
-          count: exercise.lastSessionSetCount,
+          // entry_date is a plain calendar date with no time component — UTC keeps it from
+          // shifting a day either way in the device's local zone.
+          date: formatUtcDate(exercise.lastEntryDate, locale),
+          count: exercise.lastEntrySetCount,
         })}
       </Text>
     </TouchableOpacity>
