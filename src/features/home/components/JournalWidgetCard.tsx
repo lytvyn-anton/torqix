@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import { NewJournalSheet } from '../../journal/components/NewJournalSheet';
+import { useJournalForProgram } from '../../journal/hooks/useJournalForProgram';
 import { useResolveProgramJournal } from '../../journal/hooks/useResolveProgramJournal';
 import { useProgram } from '../../programs/hooks/useProgram';
 import type { ProgramDetailDay } from '../../programs/types';
@@ -41,6 +42,7 @@ export function JournalWidgetCard({
   const [sheetVisible, setSheetVisible] = useState(false);
 
   const programQuery = useProgram(programId);
+  const journalForProgramQuery = useJournalForProgram(userId, programId);
   const resolveJournal = useResolveProgramJournal(userId);
   // A plain ref, not resolveJournal.isPending: that only flips after React commits the
   // re-render, so two taps on different day rows in the same tick (a mis-tap immediately
@@ -70,10 +72,48 @@ export function JournalWidgetCard({
     );
   };
 
+  // No day picked here, unlike handleDayPress — lands on the journal's own (empty) entry
+  // list rather than jumping straight into logging one specific day.
+  const handleStartJournal = () => {
+    if (isResolvingRef.current) return;
+    isResolvingRef.current = true;
+    resolveJournal.mutate(
+      { programId, programName },
+      {
+        onSuccess: (journal) => {
+          isResolvingRef.current = false;
+          router.push(`/journal/${journal.id}`);
+        },
+        onError: () => {
+          isResolvingRef.current = false;
+        },
+      },
+    );
+  };
+
+  // Only once the check has actually resolved to "no journal exists" — while it's still
+  // loading, or errored, stay quiet rather than flash a false "no journal yet" claim.
+  const showNoJournalYet = journalForProgramQuery.isSuccess && journalForProgramQuery.data === null;
+
   return (
     <View style={[formStyles.glassSurface, styles.card]} testID="journal-widget-card">
       <Text style={styles.eyebrow}>{t('home.journalLabel')}</Text>
       <Text style={styles.programName}>{programName}</Text>
+
+      {showNoJournalYet && (
+        <View style={styles.noJournalRow} testID="journal-widget-no-journal-yet">
+          <Text style={styles.noJournalText}>{t('home.noJournalYet')}</Text>
+          <TouchableOpacity
+            style={[formStyles.primaryButton, styles.startJournalButton]}
+            onPress={handleStartJournal}
+            disabled={resolveJournal.isPending}
+            accessibilityRole="button"
+            testID="journal-widget-start-journal"
+          >
+            <Text style={formStyles.primaryButtonText}>{t('home.startJournal')}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       <TouchableOpacity
         style={styles.newJournalRow}
@@ -161,6 +201,18 @@ function buildStyles(colors: ThemeColors) {
       fontSize: 18,
       color: colors.textPrimary,
       marginTop: spacing.xs,
+    },
+    noJournalRow: {
+      gap: spacing.sm,
+    },
+    noJournalText: {
+      fontSize: 13,
+      color: colors.textMuted,
+    },
+    startJournalButton: {
+      alignSelf: 'flex-start',
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.lg,
     },
     newJournalRow: {
       alignSelf: 'flex-start',
