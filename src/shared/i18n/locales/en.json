@@ -77,7 +77,9 @@
     "nextDay": "Next: {{day}}",
     "journalLabel": "Journal",
     "noJournalYet": "No journal yet.",
-    "journalNeedsProgram": "Create a program to start a journal.",
+    "newJournalCta": "+ New journal",
+    "blankJournalName": "Journal",
+    "newJournalError": "Couldn't create your journal. Try again.",
     "noDays": "This program has no days set up yet.",
     "loadError": "Couldn't load your program."
   },

@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
+import { useCreateJournal } from '../../journal/hooks/useCreateJournal';
 import { useCurrentJournal } from '../../journal/hooks/useCurrentJournal';
 import { useResolveProgramJournal } from '../../journal/hooks/useResolveProgramJournal';
 import type { ActiveProgram } from '../../programs/types';
@@ -19,12 +20,13 @@ type Props = {
 // Program/Journal separation, see PLAN.md). Shows at most one journal: the most recently
 // created active one (useCurrentJournal), across any program. Unlike the old
 // resolve-on-day-tap flow, nothing here creates a journal as a side effect of unrelated
-// navigation — "Start a journal from this program" only fires on an explicit tap, reusing
-// the same resolve-or-create mutation as ProgramDetailScreen's identical action so tapping
-// either one for the same program lands on the same journal rather than creating a
-// duplicate. There is deliberately no "+ New journal" (blank, program-less) entry point here
-// yet — that needs JournalEntryScreen to support logging against a program-less journal
-// first (Phase 6's free-form editing task), so it isn't wired in until then.
+// navigation — both actions below only fire on an explicit tap. "Start a journal from this
+// program" reuses the same resolve-or-create mutation as ProgramDetailScreen's identical
+// action, so tapping either one for the same program lands on the same journal rather than
+// creating a duplicate. "+ New journal" is a plain create with no program — safe to offer
+// unconditionally now that JournalEntryScreen supports logging against a program-less
+// journal (Phase 6's free-form editing task); a second tap just makes a second blank
+// journal, manageable from the Programs tab's Journals list.
 export function JournalWidgetCard({ userId, activeProgram }: Props) {
   const { t } = useTranslation();
   const router = useRouter();
@@ -34,11 +36,19 @@ export function JournalWidgetCard({ userId, activeProgram }: Props) {
 
   const currentJournalQuery = useCurrentJournal(userId);
   const resolveJournal = useResolveProgramJournal(userId);
+  const createJournal = useCreateJournal(userId);
 
   const handleStartFromProgram = () => {
     if (!activeProgram) return;
     resolveJournal.mutate(
       { programId: activeProgram.id, programName: activeProgram.name },
+      { onSuccess: (journal) => router.push(`/journal/${journal.id}`) },
+    );
+  };
+
+  const handleCreateBlank = () => {
+    createJournal.mutate(
+      { programId: null, name: t('home.blankJournalName') },
       { onSuccess: (journal) => router.push(`/journal/${journal.id}`) },
     );
   };
@@ -81,13 +91,17 @@ export function JournalWidgetCard({ userId, activeProgram }: Props) {
 
       {currentJournalQuery.data === null && (
         <View style={styles.noJournalRow} testID="journal-widget-no-journal">
-          {activeProgram ? (
+          <Text style={styles.noJournalText}>{t('home.noJournalYet')}</Text>
+
+          {/* Each button disables on both mutations' isPending, not just its own — otherwise
+              tapping one then immediately the other (before the first settles) could fire
+              both, creating two separate journals and pushing two screens back to back. */}
+          {activeProgram && (
             <>
-              <Text style={styles.noJournalText}>{t('home.noJournalYet')}</Text>
               <TouchableOpacity
                 style={[formStyles.primaryButton, styles.actionButton]}
                 onPress={handleStartFromProgram}
-                disabled={resolveJournal.isPending}
+                disabled={resolveJournal.isPending || createJournal.isPending}
                 accessibilityRole="button"
                 testID="journal-widget-start-from-program"
               >
@@ -99,8 +113,29 @@ export function JournalWidgetCard({ userId, activeProgram }: Props) {
                 </Text>
               )}
             </>
-          ) : (
-            <Text style={styles.noJournalText}>{t('home.journalNeedsProgram')}</Text>
+          )}
+
+          {/* A plain link alongside the primary "start from program" action, or the sole,
+              primary-styled action when there's no program to start one from. */}
+          <TouchableOpacity
+            style={
+              activeProgram
+                ? styles.newJournalLink
+                : [formStyles.primaryButton, styles.actionButton]
+            }
+            onPress={handleCreateBlank}
+            disabled={createJournal.isPending || resolveJournal.isPending}
+            accessibilityRole="button"
+            testID="journal-widget-new-journal"
+          >
+            <Text style={activeProgram ? styles.newJournalLinkText : formStyles.primaryButtonText}>
+              {t('home.newJournalCta')}
+            </Text>
+          </TouchableOpacity>
+          {createJournal.isError && (
+            <Text style={formStyles.error} testID="journal-widget-new-journal-error">
+              {t('home.newJournalError')}
+            </Text>
           )}
         </View>
       )}
@@ -144,6 +179,14 @@ function buildStyles(colors: ThemeColors) {
     noJournalText: {
       fontSize: 13,
       color: colors.textMuted,
+    },
+    newJournalLink: {
+      alignSelf: 'flex-start',
+    },
+    newJournalLinkText: {
+      color: colors.accentDark,
+      fontWeight: '600',
+      fontSize: 13,
     },
   });
 }

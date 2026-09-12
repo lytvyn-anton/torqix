@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 
 import '../../../shared/i18n';
 import { renderWithProviders as render } from '../../../shared/testing/renderWithProviders';
+import { useCreateJournal } from '../../journal/hooks/useCreateJournal';
 import { useCurrentJournal } from '../../journal/hooks/useCurrentJournal';
 import { useResolveProgramJournal } from '../../journal/hooks/useResolveProgramJournal';
 import { JournalWidgetCard } from './JournalWidgetCard';
@@ -12,10 +13,12 @@ jest.mock('../../journal/hooks/useCurrentJournal', () => ({ useCurrentJournal: j
 jest.mock('../../journal/hooks/useResolveProgramJournal', () => ({
   useResolveProgramJournal: jest.fn(),
 }));
+jest.mock('../../journal/hooks/useCreateJournal', () => ({ useCreateJournal: jest.fn() }));
 
 const mockedUseRouter = jest.mocked(useRouter);
 const mockedUseCurrentJournal = jest.mocked(useCurrentJournal);
 const mockedUseResolveProgramJournal = jest.mocked(useResolveProgramJournal);
+const mockedUseCreateJournal = jest.mocked(useCreateJournal);
 
 const activeProgram = { id: 'program-1', name: 'Push / Pull / Legs' };
 const journal = {
@@ -29,16 +32,23 @@ const journal = {
 describe('JournalWidgetCard', () => {
   let push: jest.Mock;
   let resolveMutate: jest.Mock;
+  let createMutate: jest.Mock;
 
   beforeEach(() => {
     push = jest.fn();
     resolveMutate = jest.fn();
+    createMutate = jest.fn();
     mockedUseRouter.mockReturnValue({ push } as unknown as ReturnType<typeof useRouter>);
     mockedUseResolveProgramJournal.mockReturnValue({
       mutate: resolveMutate,
       isPending: false,
       isError: false,
     } as unknown as ReturnType<typeof useResolveProgramJournal>);
+    mockedUseCreateJournal.mockReturnValue({
+      mutate: createMutate,
+      isPending: false,
+      isError: false,
+    } as unknown as ReturnType<typeof useCreateJournal>);
   });
 
   it('shows a loading indicator while the current journal is loading', async () => {
@@ -121,6 +131,34 @@ describe('JournalWidgetCard', () => {
       expect(screen.getByTestId('journal-widget-start-from-program')).toBeTruthy();
     });
 
+    it('disables "start from program" while a blank create is already in flight', async () => {
+      mockedUseCreateJournal.mockReturnValue({
+        mutate: createMutate,
+        isPending: true,
+        isError: false,
+      } as unknown as ReturnType<typeof useCreateJournal>);
+
+      await render(<JournalWidgetCard userId="user-1" activeProgram={activeProgram} />);
+
+      expect(
+        screen.getByTestId('journal-widget-start-from-program').props.accessibilityState.disabled,
+      ).toBe(true);
+    });
+
+    it('disables the blank "+ New journal" action while "start from program" is already in flight', async () => {
+      mockedUseResolveProgramJournal.mockReturnValue({
+        mutate: resolveMutate,
+        isPending: true,
+        isError: false,
+      } as unknown as ReturnType<typeof useResolveProgramJournal>);
+
+      await render(<JournalWidgetCard userId="user-1" activeProgram={activeProgram} />);
+
+      expect(
+        screen.getByTestId('journal-widget-new-journal').props.accessibilityState.disabled,
+      ).toBe(true);
+    });
+
     it('resolves the journal for the active program and navigates into it on success', async () => {
       resolveMutate.mockImplementation((_input, options) => {
         options.onSuccess({ id: 'journal-new' });
@@ -148,11 +186,53 @@ describe('JournalWidgetCard', () => {
       expect(screen.getByTestId('journal-widget-start-error')).toBeTruthy();
     });
 
-    it('shows a program-needed note with no action when there is no active program', async () => {
+    it('offers only the blank "+ New journal" action when there is no active program', async () => {
       await render(<JournalWidgetCard userId="user-1" activeProgram={undefined} />);
 
       expect(screen.queryByTestId('journal-widget-start-from-program')).toBeNull();
-      expect(screen.getByTestId('journal-widget-no-journal')).toBeTruthy();
+      expect(screen.getByTestId('journal-widget-new-journal')).toBeTruthy();
+    });
+
+    it('creates a blank journal with no program and navigates into it on success', async () => {
+      createMutate.mockImplementation((_input, options) => {
+        options.onSuccess({ id: 'journal-blank' });
+      });
+
+      await render(<JournalWidgetCard userId="user-1" activeProgram={activeProgram} />);
+      await fireEvent.press(screen.getByTestId('journal-widget-new-journal'));
+
+      expect(createMutate).toHaveBeenCalledWith(
+        { programId: null, name: 'Journal' },
+        expect.anything(),
+      );
+      expect(push).toHaveBeenCalledWith('/journal/journal-blank');
+    });
+
+    it('creates a blank journal even with no active program', async () => {
+      createMutate.mockImplementation((_input, options) => {
+        options.onSuccess({ id: 'journal-blank' });
+      });
+
+      await render(<JournalWidgetCard userId="user-1" activeProgram={undefined} />);
+      await fireEvent.press(screen.getByTestId('journal-widget-new-journal'));
+
+      expect(createMutate).toHaveBeenCalledWith(
+        { programId: null, name: 'Journal' },
+        expect.anything(),
+      );
+      expect(push).toHaveBeenCalledWith('/journal/journal-blank');
+    });
+
+    it('shows a create error when the blank-journal mutation fails', async () => {
+      mockedUseCreateJournal.mockReturnValue({
+        mutate: createMutate,
+        isPending: false,
+        isError: true,
+      } as unknown as ReturnType<typeof useCreateJournal>);
+
+      await render(<JournalWidgetCard userId="user-1" activeProgram={activeProgram} />);
+
+      expect(screen.getByTestId('journal-widget-new-journal-error')).toBeTruthy();
     });
   });
 });
