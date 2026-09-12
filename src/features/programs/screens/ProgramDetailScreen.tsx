@@ -84,13 +84,13 @@ export function ProgramDetailScreen({ userId, programId }: Props) {
         ))}
 
         <TouchableOpacity
-          style={[formStyles.primaryButton, styles.startJournalButton]}
+          style={styles.startJournalLink}
           onPress={handleStartJournal}
           disabled={resolveJournal.isPending}
           accessibilityRole="button"
           testID="program-detail-start-journal"
         >
-          <Text style={formStyles.primaryButtonText}>{t('programs.startJournal')}</Text>
+          <Text style={styles.startJournalLinkText}>{t('programs.startJournal')}</Text>
         </TouchableOpacity>
 
         {resolveJournal.isError && (
@@ -218,8 +218,14 @@ function buildStyles(colors: ThemeColors) {
       fontWeight: '600',
       color: colors.accentDark,
     },
-    startJournalButton: {
+    startJournalLink: {
+      alignSelf: 'center',
       marginTop: spacing.lg,
+    },
+    startJournalLinkText: {
+      color: colors.accentDark,
+      fontWeight: '700',
+      fontSize: 15,
     },
     statusToggle: {
       alignSelf: 'center',
