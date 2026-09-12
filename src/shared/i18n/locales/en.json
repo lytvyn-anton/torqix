@@ -142,6 +142,33 @@
       "full_body": "Full body"
     }
   },
+  "journal": {
+    "title": "Journal",
+    "newEntryTitle": "New entry",
+    "loadError": "Couldn't load this journal.",
+    "newEntry": "+ New entry",
+    "emptyBody": "No entries yet. Log your first one to start this journal.",
+    "noDay": "No day",
+    "setCount": "{{count}} sets",
+    "orphanedTitle": "Program deleted",
+    "orphanedBody": "The program this journal belonged to was deleted, so there's nothing left to log here.",
+    "noDaysTitle": "No days to log",
+    "noDaysBody": "This program has no days set up yet, so there's nothing to log against.",
+    "chooseDayTitle": "Which day?",
+    "viewProgress": "Progress",
+    "target": "Target: {{sets}} × {{reps}}",
+    "repsPlaceholder": "Reps",
+    "weightPlaceholder": "kg",
+    "addSet": "+ Add set",
+    "deleteSet": "Delete set",
+    "save": "Save entry",
+    "saveError": "Couldn't save this entry. Try again.",
+    "saveDiscardTitle": "Save this entry?",
+    "saveDiscardBody": "You have unsaved sets. Save them before leaving, or discard them.",
+    "saveDiscardSave": "Save entry",
+    "saveDiscardDiscard": "Discard",
+    "saveDiscardKeepEditing": "Keep editing"
+  },
   "progress": {
     "title": "Progress",
     "loadError": "Couldn't load your progress for this exercise.",

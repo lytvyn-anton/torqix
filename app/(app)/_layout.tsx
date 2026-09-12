@@ -65,6 +65,26 @@ export default function AppLayout() {
         }}
       />
       <Stack.Screen
+        name="journal/[id]"
+        options={{
+          headerShown: true,
+          title: t('journal.title'),
+          headerStyle: { backgroundColor: colors.background },
+          headerShadowVisible: false,
+          headerTintColor: colors.textPrimary,
+        }}
+      />
+      <Stack.Screen
+        name="journal-entry/[journalId]"
+        options={{
+          headerShown: true,
+          title: t('journal.newEntryTitle'),
+          headerStyle: { backgroundColor: colors.background },
+          headerShadowVisible: false,
+          headerTintColor: colors.textPrimary,
+        }}
+      />
+      <Stack.Screen
         name="exercise-progress/[exerciseId]"
         options={{
           headerShown: true,
