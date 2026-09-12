@@ -150,6 +150,33 @@ describe('JournalEntryScreen', () => {
     expect(screen.getByText('Back Squat')).toBeTruthy();
   });
 
+  it('pre-selects initialDayId on a multi-day program instead of showing the day picker', async () => {
+    mockedUseProgram.mockReturnValue({
+      data: twoDayProgram,
+      isLoading: false,
+      isError: false,
+    } as unknown as ReturnType<typeof useProgram>);
+
+    await render(<JournalEntryScreen userId="user-1" journalId="journal-1" initialDayId="day-2" />);
+
+    expect(screen.queryByTestId('journal-entry-choose-day')).toBeNull();
+    expect(screen.getByText('Pull day')).toBeTruthy();
+  });
+
+  it('falls back to the day picker when initialDayId matches none of the program days', async () => {
+    mockedUseProgram.mockReturnValue({
+      data: twoDayProgram,
+      isLoading: false,
+      isError: false,
+    } as unknown as ReturnType<typeof useProgram>);
+
+    await render(
+      <JournalEntryScreen userId="user-1" journalId="journal-1" initialDayId="stale-day" />,
+    );
+
+    expect(screen.getByTestId('journal-entry-choose-day')).toBeTruthy();
+  });
+
   it("auto-selects the program's only day and pre-fills rows from its target", async () => {
     await render(<JournalEntryScreen userId="user-1" journalId="journal-1" />);
 

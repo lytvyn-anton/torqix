@@ -5,7 +5,7 @@ import { useSession } from '../../../src/shared/auth/SessionProvider';
 
 export default function JournalEntryRoute() {
   const { session } = useSession();
-  const { journalId } = useLocalSearchParams<{ journalId: string }>();
+  const { journalId, dayId } = useLocalSearchParams<{ journalId: string; dayId?: string }>();
   if (!session || !journalId) return null;
-  return <JournalEntryScreen userId={session.user.id} journalId={journalId} />;
+  return <JournalEntryScreen userId={session.user.id} journalId={journalId} initialDayId={dayId} />;
 }

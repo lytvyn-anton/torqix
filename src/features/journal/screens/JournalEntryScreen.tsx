@@ -38,6 +38,10 @@ import { toNullableFloat, toNullableInt } from '../../../shared/utils/numberInpu
 type Props = {
   userId: string;
   journalId: string;
+  // Set when arriving from the Home tab's JournalWidgetCard, which lets the user tap a
+  // specific program day rather than always landing on the "which day?" picker below —
+  // ignored if it doesn't match one of this journal's program's days (e.g. stale deep link).
+  initialDayId?: string;
 };
 
 type Draft = { id: string; reps: string; weight: string };
@@ -160,7 +164,7 @@ function buildInputs(
   return inputs;
 }
 
-export function JournalEntryScreen({ userId, journalId }: Props) {
+export function JournalEntryScreen({ userId, journalId, initialDayId }: Props) {
   const { t } = useTranslation();
   const router = useRouter();
   const navigation = useNavigation();
@@ -175,10 +179,15 @@ export function JournalEntryScreen({ userId, journalId }: Props) {
 
   const days = programQuery.data?.days ?? [];
   const [selectedDayId, setSelectedDayId] = useState<string | null>(null);
-  // Auto-picks the only day there is — set during render (React's documented pattern for
-  // deriving state from data that just became available) rather than an Effect, so there's
-  // no wasted frame showing a picker with a single, pointless option.
-  if (selectedDayId === null && days.length === 1) {
+  // Auto-picks initialDayId (arrived here via a specific day on the Home tab's
+  // JournalWidgetCard) or the only day there is — set during render (React's documented
+  // pattern for deriving state from data that just became available) rather than an Effect,
+  // so there's no wasted frame showing a picker with a single, pointless, or already-decided
+  // option.
+  const initialDayMatches = initialDayId != null && days.some((day) => day.id === initialDayId);
+  if (selectedDayId === null && initialDayMatches) {
+    setSelectedDayId(initialDayId as string);
+  } else if (selectedDayId === null && !initialDayMatches && days.length === 1) {
     setSelectedDayId(days[0].id);
   }
   const selectedDay = days.find((day) => day.id === selectedDayId) ?? null;
