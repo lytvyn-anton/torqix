@@ -74,6 +74,8 @@
     "emptyTitle": "No active program",
     "emptyBody": "Start a journal to begin tracking your workouts",
     "journalLabel": "Journal",
+    "noJournalYet": "No journal yet for this program.",
+    "startJournal": "Start journal",
     "newJournalCta": "+ New journal",
     "noDays": "This program has no days set up yet.",
     "startJournalError": "Couldn't start your journal. Try again.",
