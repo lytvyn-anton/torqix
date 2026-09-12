@@ -3,6 +3,7 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { queryClient } from '../src/shared/api/queryClient';
 import { SessionProvider, useSession } from '../src/shared/auth/SessionProvider';
@@ -16,13 +17,15 @@ export default function RootLayout() {
   // Providers mount immediately — session restore (SessionProvider's onAuthStateChange
   // subscription) starts right away instead of waiting behind font loading.
   return (
-    <ThemeProvider>
-      <QueryClientProvider client={queryClient}>
-        <SessionProvider>
-          <RootNavigator />
-        </SessionProvider>
-      </QueryClientProvider>
-    </ThemeProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ThemeProvider>
+        <QueryClientProvider client={queryClient}>
+          <SessionProvider>
+            <RootNavigator />
+          </SessionProvider>
+        </QueryClientProvider>
+      </ThemeProvider>
+    </GestureHandlerRootView>
   );
 }
 
