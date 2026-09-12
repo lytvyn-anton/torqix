@@ -4,12 +4,15 @@ import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   ScrollView,
+  type StyleProp,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
+  type ViewStyle,
 } from 'react-native';
+import Swipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CancelWorkoutSheet } from '../components/CancelWorkoutSheet';
@@ -22,9 +25,10 @@ import { useSetLogs } from '../hooks/useSetLogs';
 import { useSyncSetLogs } from '../hooks/useSyncSetLogs';
 import { useWorkoutSession } from '../hooks/useWorkoutSession';
 import type { LogSetInput, ProgramDayExerciseDetail, SetLog } from '../types';
+import { TrashIcon } from '../../../shared/components/icons/TrashIcon';
 import { useFormStyles } from '../../../shared/theme/formStyles';
 import { useTheme } from '../../../shared/theme/ThemeProvider';
-import { spacing, type ThemeColors } from '../../../shared/theme/theme';
+import { radii, spacing, type ThemeColors } from '../../../shared/theme/theme';
 import { toNullableFloat, toNullableInt } from '../../../shared/utils/numberInput';
 
 type Props = {
@@ -34,10 +38,58 @@ type Props = {
   onCompleted: (sessionId: string) => void;
 };
 
-type Draft = { reps: string; weight: string };
+// A plain, fixed-width button (not animated to the live swipe distance): ReanimatedSwipeable
+// measures this view's own rendered width to know how far the row can swipe, so shrinking it
+// dynamically (e.g. to track the drag) would make the measured width 0 at rest and lock the
+// gesture at "nothing to reveal" before the first swipe even starts.
+function SetDeleteAction({
+  onPress,
+  accessibilityLabel,
+  testID,
+  iconColor,
+  style,
+}: {
+  onPress: () => void;
+  accessibilityLabel: string;
+  testID: string;
+  iconColor: string;
+  style: StyleProp<ViewStyle>;
+}) {
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      style={style}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      testID={testID}
+    >
+      <TrashIcon color={iconColor} size={18} />
+    </TouchableOpacity>
+  );
+}
 
-function defaultDraft(exercise: ProgramDayExerciseDetail): Draft {
+type Draft = { id: string; reps: string; weight: string };
+
+// A stable per-row id, independent of the row's position in the array — used as the list
+// key for each row's Swipeable so deleting a row unmounts *that* row's swipe state instead
+// of a same-index sibling inheriting it (React would otherwise reuse the component instance
+// at that index, carrying over the previous row's still-open swipe position). Two disjoint
+// prefixes ("draft-initial"/"draft-added") keep computeInitialDrafts's render-time batch —
+// which needs its own plain local counter, since reading/writing a real ref during render is
+// unsafe (react-hooks/refs) — from ever colliding with ids handleAddSetRow hands out later
+// from its own ref, in an event handler where that's fine.
+function makeDraftId(counter: { current: number }, prefix: string): string {
+  counter.current += 1;
+  return `${prefix}-${counter.current}`;
+}
+
+function defaultDraft(
+  exercise: ProgramDayExerciseDetail,
+  idCounter: { current: number },
+  idPrefix: string,
+): Draft {
   return {
+    id: makeDraftId(idCounter, idPrefix),
     reps: exercise.reps != null ? String(exercise.reps) : '',
     weight: exercise.targetWeight != null ? String(exercise.targetWeight) : '',
   };
@@ -91,11 +143,16 @@ function computeInitialDrafts(
   setLogs: SetLog[],
   lastPerformed: LogSetInput[],
 ): Record<string, Draft[]> {
+  // A plain local counter, not a React ref — this whole function only ever runs during
+  // render (see the isInitialized guard below), where reading/writing a real ref is unsafe.
+  const idCounter = { current: 0 };
   const savedByExercise = groupByExercise(setLogs, (log) => ({
+    id: makeDraftId(idCounter, 'draft-initial'),
     reps: log.repsDone != null ? String(log.repsDone) : '',
     weight: log.weight != null ? String(log.weight) : '',
   }));
   const lastPerformedByExercise = groupByExercise(lastPerformed, (entry) => ({
+    id: makeDraftId(idCounter, 'draft-initial'),
     reps: entry.repsDone != null ? String(entry.repsDone) : '',
     weight: entry.weight != null ? String(entry.weight) : '',
   }));
@@ -122,7 +179,9 @@ function computeInitialDrafts(
       }
     }
     if (exercise.sets != null && exercise.sets > 0) {
-      drafts[exercise.id] = Array.from({ length: exercise.sets }, () => defaultDraft(exercise));
+      drafts[exercise.id] = Array.from({ length: exercise.sets }, () =>
+        defaultDraft(exercise, idCounter, 'draft-initial'),
+      );
     }
   }
   return drafts;
@@ -134,6 +193,7 @@ export function SetLoggingScreen({ userId, sessionId, onCancelled, onCompleted }
   const { colors } = useTheme();
   const formStyles = useFormStyles();
   const styles = useMemo(() => buildStyles(colors), [colors]);
+  const deleteSetLabel = t('workouts.deleteSet');
 
   const sessionQuery = useWorkoutSession(sessionId);
   const exercisesQuery = useProgramDayExercises(sessionQuery.data?.programDayId);
@@ -153,6 +213,7 @@ export function SetLoggingScreen({ userId, sessionId, onCancelled, onCompleted }
   // "Finish workout", or when they leave the screen any other way (back button, switching
   // tabs) so closing without an explicit Finish doesn't lose it either.
   const [drafts, setDrafts] = useState<Record<string, Draft[]>>({});
+  const nextDraftIdRef = useRef(0);
   const [cancelSheetVisible, setCancelSheetVisible] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveFailed, setSaveFailed] = useState(false);
@@ -226,7 +287,16 @@ export function SetLoggingScreen({ userId, sessionId, onCancelled, onCompleted }
   const handleAddSetRow = (exercise: ProgramDayExerciseDetail) => {
     isHandledRef.current = false;
     const rows = drafts[exercise.id] ?? [];
-    setDrafts({ ...drafts, [exercise.id]: [...rows, defaultDraft(exercise)] });
+    setDrafts({
+      ...drafts,
+      [exercise.id]: [...rows, defaultDraft(exercise, nextDraftIdRef, 'draft-added')],
+    });
+  };
+
+  const handleDeleteSetRow = (exercise: ProgramDayExerciseDetail, rowIndex: number) => {
+    isHandledRef.current = false;
+    const rows = drafts[exercise.id] ?? [];
+    setDrafts({ ...drafts, [exercise.id]: rows.filter((_, i) => i !== rowIndex) });
   };
 
   const handleConfirmCancel = () => {
@@ -370,26 +440,41 @@ export function SetLoggingScreen({ userId, sessionId, onCancelled, onCompleted }
               )}
 
               {rows.map((draft, rowIndex) => (
-                <View key={rowIndex} style={[styles.fieldsRow, styles.setRow]}>
-                  <TextInput
-                    style={[formStyles.input, styles.field]}
-                    value={draft.reps}
-                    onChangeText={(value) => setDraftField(exercise, rowIndex, 'reps', value)}
-                    placeholder={t('workouts.repsPlaceholder')}
-                    placeholderTextColor={colors.textFaint}
-                    keyboardType="number-pad"
-                    testID={`set-logging-${exercise.id}-reps-${rowIndex}`}
-                  />
-                  <TextInput
-                    style={[formStyles.input, styles.field]}
-                    value={draft.weight}
-                    onChangeText={(value) => setDraftField(exercise, rowIndex, 'weight', value)}
-                    placeholder={t('workouts.weightPlaceholder')}
-                    placeholderTextColor={colors.textFaint}
-                    keyboardType="decimal-pad"
-                    testID={`set-logging-${exercise.id}-weight-${rowIndex}`}
-                  />
-                </View>
+                <Swipeable
+                  key={draft.id}
+                  containerStyle={styles.setRow}
+                  overshootRight={false}
+                  renderRightActions={() => (
+                    <SetDeleteAction
+                      onPress={() => handleDeleteSetRow(exercise, rowIndex)}
+                      accessibilityLabel={deleteSetLabel}
+                      testID={`set-logging-${exercise.id}-delete-${rowIndex}`}
+                      iconColor={colors.onAccent}
+                      style={styles.deleteAction}
+                    />
+                  )}
+                >
+                  <View style={styles.fieldsRow}>
+                    <TextInput
+                      style={[formStyles.input, styles.field]}
+                      value={draft.reps}
+                      onChangeText={(value) => setDraftField(exercise, rowIndex, 'reps', value)}
+                      placeholder={t('workouts.repsPlaceholder')}
+                      placeholderTextColor={colors.textFaint}
+                      keyboardType="number-pad"
+                      testID={`set-logging-${exercise.id}-reps-${rowIndex}`}
+                    />
+                    <TextInput
+                      style={[formStyles.input, styles.field]}
+                      value={draft.weight}
+                      onChangeText={(value) => setDraftField(exercise, rowIndex, 'weight', value)}
+                      placeholder={t('workouts.weightPlaceholder')}
+                      placeholderTextColor={colors.textFaint}
+                      keyboardType="decimal-pad"
+                      testID={`set-logging-${exercise.id}-weight-${rowIndex}`}
+                    />
+                  </View>
+                </Swipeable>
               ))}
 
               <TouchableOpacity
@@ -495,6 +580,17 @@ function buildStyles(colors: ThemeColors) {
     },
     field: {
       flex: 1,
+    },
+    deleteAction: {
+      width: 64,
+      // Left margin, not padding: ReanimatedSwipeable measures this whole box (margin
+      // included) to know how far to reveal, so the row swipes open exactly enough to
+      // expose this gap too, instead of the button sitting flush against the fields.
+      marginLeft: spacing.sm,
+      backgroundColor: colors.error,
+      borderRadius: radii.md,
+      alignItems: 'center',
+      justifyContent: 'center',
     },
     addSetButton: {
       alignSelf: 'flex-start',
