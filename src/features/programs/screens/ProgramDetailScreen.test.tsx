@@ -17,6 +17,11 @@ jest.mock('../../journal/hooks/useResolveProgramJournal', () => ({
   useResolveProgramJournal: jest.fn(),
 }));
 
+// This file's default-5000ms tests started intermittently timing out in CI (never locally —
+// consistently ~90ms there) once this screen picked up two more mocked hooks; bump the
+// budget rather than chase a CI-only scheduling flake with no local repro.
+jest.setTimeout(15000);
+
 const mockedUseRouter = jest.mocked(useRouter);
 const mockedUseProgram = jest.mocked(useProgram);
 const mockedUseDeleteProgram = jest.mocked(useDeleteProgram);
