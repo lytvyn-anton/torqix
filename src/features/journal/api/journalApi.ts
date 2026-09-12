@@ -1,9 +1,11 @@
 import { supabase } from '../../../shared/api/supabase';
+import { getProgram } from '../../programs/api/programsApi';
 import type {
   CreateJournalEntryInput,
   ExerciseProgressEntry,
   ExerciseSummary,
   Journal,
+  JournalDay,
   JournalEntrySummary,
   JournalSummary,
   SetLogInput,
@@ -175,11 +177,69 @@ export async function createJournal(
   return data;
 }
 
+// Cleans up a journal whose day/exercise clone failed partway through, so a retried "start a
+// journal" tap doesn't find this half-cloned journal via getJournalForProgram and skip
+// cloning entirely (resolveJournalForProgram only clones on the branch that creates a journal
+// fresh) — deleting it here lets that retry create a new one and clone into it properly.
+// Surfaces its own failure via console.error rather than throwing — the caller is already
+// mid-throw for the original error, same reasoning as deleteOrphanedJournalEntry below.
+async function deleteOrphanedJournal(journalId: string): Promise<void> {
+  const { error } = await supabase.from('journals').delete().eq('id', journalId);
+  if (error) {
+    console.error(`Failed to clean up orphaned journal ${journalId}`, error);
+  }
+}
+
+// One-time copy of a program's current days/exercises into journal_days/journal_day_exercises
+// owned by the journal — not a live reference: once cloned, later edits to the program never
+// retroactively change what this journal logs against (see PLAN.md's Phase 7 section). Same
+// two-batched-inserts-plus-order_index-remap shape as programsApi's createProgram (one insert
+// for every day, one for every exercise across every day) rather than a per-day round trip. A
+// program with no days clones nothing, same as a blank journal.
+async function cloneProgramDaysIntoJournal(journalId: string, programId: string): Promise<void> {
+  const program = await getProgram(programId);
+  if (program.days.length === 0) return;
+
+  const { data: insertedDays, error: daysError } = await supabase
+    .from('journal_days')
+    .insert(
+      program.days.map((day, index) => ({
+        journal_id: journalId,
+        name: day.name,
+        order_index: index,
+      })),
+    )
+    .select('id, order_index');
+  if (daysError) throw daysError;
+
+  // Insert order isn't guaranteed to match input order, so map by order_index (assigned
+  // above as each day's array index) instead of relying on insertedDays' array position.
+  const journalDayIdByOrderIndex = new Map(insertedDays.map((day) => [day.order_index, day.id]));
+
+  const exerciseRows = program.days.flatMap((day, dayIndex) =>
+    day.exercises.map((exercise, exerciseIndex) => ({
+      journal_day_id: journalDayIdByOrderIndex.get(dayIndex),
+      exercise_id: exercise.exerciseId,
+      order_index: exerciseIndex,
+      sets: exercise.sets,
+      reps: exercise.reps,
+      target_weight: exercise.targetWeight,
+    })),
+  );
+  if (exerciseRows.length === 0) return;
+
+  const { error: exercisesError } = await supabase
+    .from('journal_day_exercises')
+    .insert(exerciseRows);
+  if (exercisesError) throw exercisesError;
+}
+
 // Tapping a day on the Home journal card shouldn't ask the user to name anything or care
 // whether this program already has a journal — it just resolves to "the" journal for this
-// program, creating one (named after the program) the first time. Two sequential requests
-// rather than one round trip: same reasoning as createJournalEntry above, no client-side
-// transaction API to fall back on.
+// program, creating one (named after the program) the first time, and cloning the program's
+// current days/exercises into it (see cloneProgramDaysIntoJournal) so the journal has its own
+// copy to log against from here on. A clone failure deletes the just-created journal rather
+// than leaving it permanently half-cloned with no UI path to retry the clone specifically.
 export async function resolveJournalForProgram(
   userId: string,
   programId: string,
@@ -187,16 +247,64 @@ export async function resolveJournalForProgram(
 ): Promise<{ id: string }> {
   const existing = await getJournalForProgram(userId, programId);
   if (existing) return existing;
-  return createJournal(userId, { programId, name: programName });
+  const journal = await createJournal(userId, { programId, name: programName });
+  try {
+    await cloneProgramDaysIntoJournal(journal.id, programId);
+  } catch (error) {
+    await deleteOrphanedJournal(journal.id);
+    throw error;
+  }
+  return journal;
+}
+
+type JournalDayRow = {
+  id: string;
+  name: string;
+  order_index: number;
+  journal_day_exercises: {
+    exercise_id: string;
+    order_index: number;
+    sets: number | null;
+    reps: number | null;
+    target_weight: number | null;
+    exercises: { name: string } | null;
+  }[];
+};
+
+// A journal's own cloned days and exercises — what JournalEntryScreen logs against, never the
+// source program's live program_days/program_day_exercises (see cloneProgramDaysIntoJournal).
+export async function getJournalDays(journalId: string): Promise<JournalDay[]> {
+  const { data, error } = await supabase
+    .from('journal_days')
+    .select(
+      'id, name, order_index, journal_day_exercises(exercise_id, order_index, sets, reps, target_weight, exercises(name))',
+    )
+    .eq('journal_id', journalId)
+    .order('order_index', { ascending: true });
+  if (error) throw error;
+
+  return (data as unknown as JournalDayRow[]).map((day) => ({
+    id: day.id,
+    name: day.name,
+    exercises: [...(day.journal_day_exercises ?? [])]
+      .sort((a, b) => a.order_index - b.order_index)
+      .map((exercise) => ({
+        exerciseId: exercise.exercise_id,
+        exerciseName: exercise.exercises?.name ?? '',
+        sets: exercise.sets,
+        reps: exercise.reps,
+        targetWeight: exercise.target_weight,
+      })),
+  }));
 }
 
 // A journal's own saved entries, most recent first — the notebook's list screen.
-// program_day_id is nullable (ON DELETE SET NULL) so the embedded join can legitimately
+// journal_day_id is nullable (ON DELETE SET NULL) so the embedded join can legitimately
 // come back null, same as the old workout_sessions/program_days relationship.
 export async function getJournalEntries(journalId: string): Promise<JournalEntrySummary[]> {
   const { data, error } = await supabase
     .from('journal_entries')
-    .select('id, entry_date, created_at, program_days(name), journal_entry_set_logs(id)')
+    .select('id, entry_date, created_at, journal_days(name), journal_entry_set_logs(id)')
     .eq('journal_id', journalId)
     .order('entry_date', { ascending: false })
     // Tiebreaker for two entries sharing an entry_date (e.g. two sessions logged the same
@@ -206,7 +314,7 @@ export async function getJournalEntries(journalId: string): Promise<JournalEntry
   return data.map((row) => ({
     id: row.id,
     entryDate: row.entry_date,
-    programDayName: (row.program_days as unknown as { name: string } | null)?.name ?? null,
+    dayName: (row.journal_days as unknown as { name: string } | null)?.name ?? null,
     setCount: (row.journal_entry_set_logs as unknown as { id: string }[]).length,
   }));
 }
@@ -278,7 +386,7 @@ export async function createJournalEntry(
     .insert({
       journal_id: input.journalId,
       user_id: userId,
-      program_day_id: input.programDayId,
+      journal_day_id: input.journalDayId,
       entry_date: todayDateString(),
     })
     .select('id')

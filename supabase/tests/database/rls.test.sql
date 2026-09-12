@@ -1,9 +1,10 @@
--- RLS regression tests for the Phase 1 schema.
+-- RLS regression tests for the Phase 1 schema, plus Phase 7's journal_days/
+-- journal_day_exercises (the journal's own one-time clone of a program's days/exercises).
 -- Run with: supabase test db --local
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(18);
+select plan(25);
 
 -- Fixtures, created as postgres (bypasses RLS) -----------------------------
 
@@ -31,11 +32,19 @@ insert into public.exercises (id, name) values
 insert into public.journals (id, user_id, program_id, name) values
   ('40000000-0000-0000-0000-000000000000', 'a0000000-0000-0000-0000-00000000000a', '10000000-0000-0000-0000-000000000001', 'Alice Journal');
 
-insert into public.journal_entries (id, journal_id, user_id, program_day_id, entry_date) values
-  ('40000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000000', 'a0000000-0000-0000-0000-00000000000a', '20000000-0000-0000-0000-000000000001', current_date);
+-- The journal's own one-time clone of "Day A" (see cloneProgramDaysIntoJournal in
+-- journalApi.ts) — a separate row from program_days, with no FK back to it.
+insert into public.journal_days (id, journal_id, name) values
+  ('70000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000000', 'Day A');
+
+insert into public.journal_entries (id, journal_id, user_id, journal_day_id, entry_date) values
+  ('40000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000000', 'a0000000-0000-0000-0000-00000000000a', '70000000-0000-0000-0000-000000000001', current_date);
 
 insert into public.program_day_exercises (id, program_day_id, exercise_id, order_index) values
   ('50000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000002', 1);
+
+insert into public.journal_day_exercises (id, journal_day_id, exercise_id, order_index) values
+  ('80000000-0000-0000-0000-000000000001', '70000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000002', 1);
 
 insert into public.journal_entry_set_logs (id, journal_entry_id, exercise_id, set_index) values
   ('60000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000002', 1);
@@ -84,9 +93,29 @@ select is(
   'Bob can see the global exercise catalog'
 );
 
+select is(
+  (select count(*) from public.journal_days where id = '70000000-0000-0000-0000-000000000001'),
+  0::bigint,
+  'Bob cannot see Alice''s cloned journal day'
+);
+
+select is(
+  (select count(*) from public.journal_day_exercises where id = '80000000-0000-0000-0000-000000000001'),
+  0::bigint,
+  'Bob cannot see the exercise on Alice''s cloned journal day'
+);
+
 select throws_ok(
-  $$insert into public.journal_entries (journal_id, user_id, program_day_id, entry_date)
-    values ('40000000-0000-0000-0000-000000000000', 'b0000000-0000-0000-0000-00000000000b', '20000000-0000-0000-0000-000000000001', current_date)$$,
+  $$insert into public.journal_days (journal_id, name) values
+    ('40000000-0000-0000-0000-000000000000', 'Bob''s fake day')$$,
+  '42501',
+  null,
+  'Bob cannot add a day to Alice''s journal'
+);
+
+select throws_ok(
+  $$insert into public.journal_entries (journal_id, user_id, journal_day_id, entry_date)
+    values ('40000000-0000-0000-0000-000000000000', 'b0000000-0000-0000-0000-00000000000b', '70000000-0000-0000-0000-000000000001', current_date)$$,
   '42501',
   null,
   'Bob cannot log a journal entry against Alice''s journal'
@@ -114,6 +143,17 @@ select is(
   (select sets from public.program_day_exercises where id = '50000000-0000-0000-0000-000000000001'),
   null::smallint,
   'Bob''s update to an exercise entry on Alice''s program day matches zero rows (sets unchanged)'
+);
+set local role authenticated;
+select set_config('request.jwt.claim.sub', 'b0000000-0000-0000-0000-00000000000b', true);
+
+update public.journal_day_exercises set sets = 5
+  where id = '80000000-0000-0000-0000-000000000001';
+reset role;
+select is(
+  (select sets from public.journal_day_exercises where id = '80000000-0000-0000-0000-000000000001'),
+  null::smallint,
+  'Bob''s update to an exercise on Alice''s cloned journal day matches zero rows (sets unchanged)'
 );
 set local role authenticated;
 select set_config('request.jwt.claim.sub', 'b0000000-0000-0000-0000-00000000000b', true);
@@ -163,9 +203,9 @@ select throws_ok(
 select set_config('request.jwt.claim.sub', 'a0000000-0000-0000-0000-00000000000a', true);
 
 select lives_ok(
-  $$insert into public.journal_entries (journal_id, user_id, program_day_id, entry_date)
-    values ('40000000-0000-0000-0000-000000000000', 'a0000000-0000-0000-0000-00000000000a', '20000000-0000-0000-0000-000000000001', current_date + 1)$$,
-  'Alice can log a journal entry on her own program day'
+  $$insert into public.journal_entries (journal_id, user_id, journal_day_id, entry_date)
+    values ('40000000-0000-0000-0000-000000000000', 'a0000000-0000-0000-0000-00000000000a', '70000000-0000-0000-0000-000000000001', current_date + 1)$$,
+  'Alice can log a journal entry on her own cloned journal day'
 );
 
 select lives_ok(
@@ -182,18 +222,39 @@ select throws_ok(
   'Alice cannot attach Bob''s private exercise to her own program day'
 );
 
--- Editing a program can never silently destroy logged history: deleting a program_day
--- that still has a journal_entry against it succeeds, and the entry survives with its
--- program_day_id cleared rather than being cascade-deleted.
+select throws_ok(
+  $$insert into public.journal_day_exercises (journal_day_id, exercise_id, order_index)
+    values ('70000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000003', 2)$$,
+  '42501',
+  null,
+  'Alice cannot attach Bob''s private exercise to her own cloned journal day'
+);
+
+-- The whole point of Phase 7: editing/deleting the source program never touches an
+-- already-cloned journal. Deleting the program day the journal was cloned from succeeds
+-- (no FK from journal_days back to program_days at all) and leaves the clone untouched.
 select lives_ok(
   $$delete from public.program_days where id = '20000000-0000-0000-0000-000000000001'$$,
-  'Alice can delete a program day that still has a journal entry logged against it'
+  'Alice can delete the program day her journal was cloned from'
 );
 
 select is(
-  (select program_day_id from public.journal_entries where id = '40000000-0000-0000-0000-000000000001'),
+  (select journal_day_id from public.journal_entries where id = '40000000-0000-0000-0000-000000000001'),
+  '70000000-0000-0000-0000-000000000001'::uuid,
+  'The journal entry''s journal_day_id is unaffected by deleting the source program day'
+);
+
+-- Separately, the journal's own day still behaves the old program_days way for its own
+-- history: deleting it succeeds and the entry survives with journal_day_id cleared.
+select lives_ok(
+  $$delete from public.journal_days where id = '70000000-0000-0000-0000-000000000001'$$,
+  'Alice can delete a journal day that still has a journal entry logged against it'
+);
+
+select is(
+  (select journal_day_id from public.journal_entries where id = '40000000-0000-0000-0000-000000000001'),
   null::uuid,
-  'The journal entry survives the program day deletion, with program_day_id cleared'
+  'The journal entry survives the journal day deletion, with journal_day_id cleared'
 );
 
 select * from finish();

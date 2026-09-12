@@ -39,13 +39,32 @@ export type JournalSummary = {
   createdAt: string;
 };
 
-// One saved entry in a journal's own list — programDayName is null both for an orphaned
-// entry (its program day was deleted) and for one logged with no day picked at all.
+// One saved entry in a journal's own list — dayName is null both for an entry whose
+// journal_day was deleted and for one logged with no day picked at all.
 export type JournalEntrySummary = {
   id: string;
   entryDate: string;
-  programDayName: string | null;
+  dayName: string | null;
   setCount: number;
+};
+
+// A day within a journal's own, one-time copy of the days/exercises it was cloned from at
+// creation (see journal_days/journal_day_exercises) — independent of the source program's
+// program_days/program_day_exercises from that point on. Same shape as
+// programs/types.ts's ProgramDetailDay/ProgramDetailExercise, kept as separate types since
+// the two are no longer the same underlying data.
+export type JournalDayExercise = {
+  exerciseId: string;
+  exerciseName: string;
+  sets: number | null;
+  reps: number | null;
+  targetWeight: number | null;
+};
+
+export type JournalDay = {
+  id: string;
+  name: string;
+  exercises: JournalDayExercise[];
 };
 
 // One set as entered in the logging UI, and as sent to createJournalEntry — the same shape
@@ -59,6 +78,6 @@ export type SetLogInput = {
 
 export type CreateJournalEntryInput = {
   journalId: string;
-  programDayId: string | null;
+  journalDayId: string | null;
   sets: SetLogInput[];
 };
