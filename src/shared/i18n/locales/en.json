@@ -122,7 +122,14 @@
     "deleteSheetBody": "This can't be undone. Journal history for this program will be kept.",
     "deleteSheetConfirm": "Delete program",
     "deleteSheetKeepGoing": "Keep it",
-    "deleteError": "Couldn't delete the program. Try again."
+    "deleteError": "Couldn't delete the program. Try again.",
+    "tabPrograms": "Programs",
+    "tabJournals": "Journals",
+    "startJournal": "Start a journal from this program",
+    "startJournalError": "Couldn't start a journal. Try again.",
+    "setActive": "Set active",
+    "archiveProgram": "Archive program",
+    "statusError": "Couldn't update this program. Try again."
   },
   "exercises": {
     "pickerTitle": "Choose an exercise",
@@ -170,7 +177,19 @@
     "saveDiscardBody": "You have unsaved sets. Save them before leaving, or discard them.",
     "saveDiscardSave": "Save entry",
     "saveDiscardDiscard": "Discard",
-    "saveDiscardKeepEditing": "Keep editing"
+    "saveDiscardKeepEditing": "Keep editing",
+    "journalsLoadError": "Couldn't load your journals.",
+    "journalsEmptyTitle": "No journals yet",
+    "journalsEmptyBody": "Start a journal from one of your programs to see it here.",
+    "noProgram": "No program",
+    "archive": "Archive",
+    "unarchive": "Unarchive",
+    "statusError": "Couldn't update this journal. Try again.",
+    "deleteSheetTitle": "Delete this journal?",
+    "deleteSheetBody": "This can't be undone. Every entry in this journal will be deleted too.",
+    "deleteSheetConfirm": "Delete journal",
+    "deleteSheetKeepGoing": "Keep it",
+    "deleteError": "Couldn't delete the journal. Try again."
   },
   "progress": {
     "title": "Progress",

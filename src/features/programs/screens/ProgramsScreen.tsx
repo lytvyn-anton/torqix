@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
@@ -12,6 +12,7 @@ import {
 
 import { usePrograms } from '../hooks/usePrograms';
 import type { Program } from '../types';
+import { JournalsList } from '../../journal/components/JournalsList';
 import { ProgramsIcon } from '../../../shared/components/icons/TabIcons';
 import { useFloatingTabBarClearance } from '../../../shared/hooks/useFloatingTabBarClearance';
 import { useFormStyles } from '../../../shared/theme/formStyles';
@@ -23,6 +24,8 @@ type Props = {
   userId: string;
 };
 
+type Tab = 'programs' | 'journals';
+
 export function ProgramsScreen({ userId }: Props) {
   const { t, i18n } = useTranslation();
   const router = useRouter();
@@ -31,11 +34,46 @@ export function ProgramsScreen({ userId }: Props) {
   const { colors } = useTheme();
   const formStyles = useFormStyles();
   const styles = useMemo(() => buildScreenStyles(colors), [colors]);
+  const [tab, setTab] = useState<Tab>('programs');
+
+  const tabBar = (
+    <View style={styles.segmented} testID="programs-tab-bar">
+      {(['programs', 'journals'] as const).map((option) => {
+        const selected = tab === option;
+        return (
+          <TouchableOpacity
+            key={option}
+            onPress={() => setTab(option)}
+            style={[styles.segment, selected && styles.segmentSelected]}
+            testID={`programs-tab-${option}`}
+            accessibilityRole="button"
+            accessibilityState={{ selected }}
+          >
+            <Text style={[styles.segmentText, selected && styles.segmentTextSelected]}>
+              {t(option === 'programs' ? 'programs.tabPrograms' : 'programs.tabJournals')}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+
+  if (tab === 'journals') {
+    return (
+      <View style={styles.container}>
+        {tabBar}
+        <JournalsList userId={userId} />
+      </View>
+    );
+  }
 
   if (programsQuery.isLoading) {
     return (
-      <View style={styles.centered} testID="programs-loading">
-        <ActivityIndicator color={colors.accent} />
+      <View style={styles.container}>
+        {tabBar}
+        <View style={styles.centered} testID="programs-loading">
+          <ActivityIndicator color={colors.accent} />
+        </View>
       </View>
     );
   }
@@ -45,8 +83,11 @@ export function ProgramsScreen({ userId }: Props) {
   // background refetch error.
   if (programsQuery.isError && programsQuery.data === undefined) {
     return (
-      <View style={styles.centered} testID="programs-load-error">
-        <Text style={styles.error}>{t('programs.loadError')}</Text>
+      <View style={styles.container}>
+        {tabBar}
+        <View style={styles.centered} testID="programs-load-error">
+          <Text style={styles.error}>{t('programs.loadError')}</Text>
+        </View>
       </View>
     );
   }
@@ -55,47 +96,56 @@ export function ProgramsScreen({ userId }: Props) {
 
   if (programs.length === 0) {
     return (
-      <View style={styles.centered} testID="programs-empty">
-        <View style={styles.emptyIcon}>
-          <ProgramsIcon color={colors.accentDark} size={24} />
+      <View style={styles.container}>
+        {tabBar}
+        <View style={styles.centered} testID="programs-empty">
+          <View style={styles.emptyIcon}>
+            <ProgramsIcon color={colors.accentDark} size={24} />
+          </View>
+          <Text style={styles.emptyTitle}>{t('programs.emptyTitle')}</Text>
+          <Text style={styles.emptyBody}>{t('programs.emptyBody')}</Text>
+          <TouchableOpacity
+            style={[formStyles.primaryButton, styles.emptyCta]}
+            onPress={() => router.push('/program-generate')}
+            testID="programs-empty-generate-cta"
+            accessibilityRole="button"
+          >
+            <Text style={formStyles.primaryButtonText}>{t('programs.generateSubmit')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => router.push('/program-create')}
+            testID="programs-empty-cta"
+            accessibilityRole="button"
+          >
+            <Text style={styles.emptyManualLink}>{t('programs.emptyCta')}</Text>
+          </TouchableOpacity>
         </View>
-        <Text style={styles.emptyTitle}>{t('programs.emptyTitle')}</Text>
-        <Text style={styles.emptyBody}>{t('programs.emptyBody')}</Text>
-        <TouchableOpacity
-          style={[formStyles.primaryButton, styles.emptyCta]}
-          onPress={() => router.push('/program-generate')}
-          testID="programs-empty-generate-cta"
-          accessibilityRole="button"
-        >
-          <Text style={formStyles.primaryButtonText}>{t('programs.generateSubmit')}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => router.push('/program-create')}
-          testID="programs-empty-cta"
-          accessibilityRole="button"
-        >
-          <Text style={styles.emptyManualLink}>{t('programs.emptyCta')}</Text>
-        </TouchableOpacity>
       </View>
     );
   }
 
   return (
-    <FlatList
-      testID="programs-list"
-      style={styles.list}
-      contentContainerStyle={[styles.listContent, { paddingBottom: spacing.lg + tabBarClearance }]}
-      data={programs}
-      keyExtractor={(program) => program.id}
-      renderItem={({ item }) => (
-        <ProgramCard
-          program={item}
-          locale={i18n.language}
-          archivedLabel={t('programs.statusArchived')}
-          onPress={() => router.push(`/program/${item.id}`)}
-        />
-      )}
-    />
+    <View style={styles.container}>
+      {tabBar}
+      <FlatList
+        testID="programs-list"
+        style={styles.list}
+        contentContainerStyle={[
+          styles.listContent,
+          { paddingBottom: spacing.lg + tabBarClearance },
+        ]}
+        data={programs}
+        keyExtractor={(program) => program.id}
+        renderItem={({ item }) => (
+          <ProgramCard
+            program={item}
+            locale={i18n.language}
+            archivedLabel={t('programs.statusArchived')}
+            onPress={() => router.push(`/program/${item.id}`)}
+          />
+        )}
+      />
+    </View>
   );
 }
 
@@ -137,6 +187,36 @@ function ProgramCard({
 
 function buildScreenStyles(colors: ThemeColors) {
   return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: 'transparent',
+    },
+    segmented: {
+      flexDirection: 'row',
+      marginHorizontal: spacing.lg,
+      marginTop: spacing.md,
+      borderWidth: 1,
+      borderColor: colors.borderInput,
+      borderRadius: radii.md,
+      overflow: 'hidden',
+    },
+    segment: {
+      flex: 1,
+      paddingVertical: spacing.sm,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    segmentSelected: {
+      backgroundColor: colors.accent,
+    },
+    segmentText: {
+      color: colors.textPrimary,
+      fontWeight: '600',
+      fontSize: 13,
+    },
+    segmentTextSelected: {
+      color: colors.onAccent,
+    },
     centered: {
       flex: 1,
       alignItems: 'center',

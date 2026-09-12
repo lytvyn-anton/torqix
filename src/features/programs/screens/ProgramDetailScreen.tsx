@@ -13,7 +13,9 @@ import {
 import { DeleteProgramSheet } from '../components/DeleteProgramSheet';
 import { useDeleteProgram } from '../hooks/useDeleteProgram';
 import { useProgram } from '../hooks/useProgram';
+import { useSetProgramStatus } from '../hooks/useSetProgramStatus';
 import type { ProgramDetailDay } from '../types';
+import { useResolveProgramJournal } from '../../journal/hooks/useResolveProgramJournal';
 import { useFormStyles } from '../../../shared/theme/formStyles';
 import { useTheme } from '../../../shared/theme/ThemeProvider';
 import { fonts, radii, spacing, type ThemeColors } from '../../../shared/theme/theme';
@@ -31,10 +33,20 @@ export function ProgramDetailScreen({ userId, programId }: Props) {
   const styles = useMemo(() => buildStyles(colors), [colors]);
   const programQuery = useProgram(programId);
   const deleteProgram = useDeleteProgram(userId);
+  const setStatus = useSetProgramStatus(userId, programId);
+  const resolveJournal = useResolveProgramJournal(userId);
   const [deleteSheetVisible, setDeleteSheetVisible] = useState(false);
 
   const handleConfirmDelete = () => {
     deleteProgram.mutate(programId, { onSuccess: () => router.back() });
+  };
+
+  const handleStartJournal = () => {
+    if (!programQuery.data) return;
+    resolveJournal.mutate(
+      { programId, programName: programQuery.data.name },
+      { onSuccess: (journal) => router.push(`/journal/${journal.id}`) },
+    );
   };
 
   if (programQuery.isLoading) {
@@ -58,11 +70,52 @@ export function ProgramDetailScreen({ userId, programId }: Props) {
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.name}>{program.name}</Text>
+        <View style={styles.header}>
+          <Text style={styles.name}>{program.name}</Text>
+          {program.status === 'archived' && (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>{t('programs.statusArchived')}</Text>
+            </View>
+          )}
+        </View>
 
         {program.days.map((day) => (
           <DayCard key={day.id} day={day} colors={colors} />
         ))}
+
+        <TouchableOpacity
+          style={[formStyles.primaryButton, styles.startJournalButton]}
+          onPress={handleStartJournal}
+          disabled={resolveJournal.isPending}
+          accessibilityRole="button"
+          testID="program-detail-start-journal"
+        >
+          <Text style={formStyles.primaryButtonText}>{t('programs.startJournal')}</Text>
+        </TouchableOpacity>
+
+        {resolveJournal.isError && (
+          <Text style={formStyles.error} testID="program-detail-start-journal-error">
+            {t('programs.startJournalError')}
+          </Text>
+        )}
+
+        <TouchableOpacity
+          style={styles.statusToggle}
+          onPress={() => setStatus.mutate(program.status === 'active' ? 'archived' : 'active')}
+          disabled={setStatus.isPending}
+          accessibilityRole="button"
+          testID="program-detail-toggle-status"
+        >
+          <Text style={styles.statusToggleText}>
+            {t(program.status === 'active' ? 'programs.archiveProgram' : 'programs.setActive')}
+          </Text>
+        </TouchableOpacity>
+
+        {setStatus.isError && (
+          <Text style={formStyles.error} testID="program-detail-status-error">
+            {t('programs.statusError')}
+          </Text>
+        )}
 
         <View style={styles.actions}>
           <TouchableOpacity
@@ -141,11 +194,39 @@ function buildStyles(colors: ThemeColors) {
       padding: spacing.xl,
       gap: spacing.md,
     },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
     name: {
       fontFamily: fonts.headingBold,
       fontWeight: fonts.headingBoldWeight,
       fontSize: 20,
       color: colors.textPrimary,
+    },
+    badge: {
+      backgroundColor: colors.accentTint,
+      borderRadius: radii.pill,
+      paddingVertical: 2,
+      paddingHorizontal: spacing.sm,
+    },
+    badgeText: {
+      fontSize: 11,
+      fontWeight: '600',
+      color: colors.accentDark,
+    },
+    startJournalButton: {
+      marginTop: spacing.lg,
+    },
+    statusToggle: {
+      alignSelf: 'center',
+      marginTop: spacing.sm,
+    },
+    statusToggleText: {
+      color: colors.accentDark,
+      fontWeight: '600',
+      fontSize: 13,
     },
     actions: {
       flexDirection: 'row',

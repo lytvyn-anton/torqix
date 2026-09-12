@@ -12,6 +12,16 @@ import { ProgramsScreen } from './ProgramsScreen';
 jest.mock('../hooks/usePrograms', () => ({ usePrograms: jest.fn() }));
 jest.mock('expo-router', () => ({ useRouter: jest.fn() }));
 
+// JournalsList has its own test coverage (useJournals/useSetJournalStatus/useDeleteJournal,
+// row actions) — mocked here to a simple stand-in so ProgramsScreen's own tests only exercise
+// its tab-switching, not JournalsList's internals.
+jest.mock('../../journal/components/JournalsList', () => {
+  const { Text } = jest.requireActual('react-native');
+  return {
+    JournalsList: () => <Text testID="journals-list-stub" />,
+  };
+});
+
 const mockedUsePrograms = jest.mocked(usePrograms);
 const mockedUseRouter = jest.mocked(useRouter);
 
@@ -150,5 +160,26 @@ describe('ProgramsScreen', () => {
     fireEvent.press(screen.getByTestId('program-card-program-1'));
 
     expect(push).toHaveBeenCalledWith('/program/program-1');
+  });
+
+  it('switches to the Journals tab and back', async () => {
+    mockedUsePrograms.mockReturnValue({
+      isLoading: false,
+      isError: false,
+      data: [
+        { id: 'program-1', name: 'Push / Pull / Legs', status: 'active', createdAt: '2026-09-01' },
+      ],
+    } as unknown as ReturnType<typeof usePrograms>);
+
+    await renderWithTabBar(<ProgramsScreen userId="user-1" />);
+
+    expect(screen.queryByTestId('journals-list-stub')).toBeNull();
+
+    await fireEvent.press(screen.getByTestId('programs-tab-journals'));
+    expect(screen.getByTestId('journals-list-stub')).toBeTruthy();
+    expect(screen.queryByTestId('programs-list')).toBeNull();
+
+    await fireEvent.press(screen.getByTestId('programs-tab-programs'));
+    expect(screen.getByTestId('programs-list')).toBeTruthy();
   });
 });

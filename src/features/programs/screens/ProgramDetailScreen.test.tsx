@@ -5,15 +5,23 @@ import '../../../shared/i18n';
 import { renderWithProviders as render } from '../../../shared/testing/renderWithProviders';
 import { useDeleteProgram } from '../hooks/useDeleteProgram';
 import { useProgram } from '../hooks/useProgram';
+import { useSetProgramStatus } from '../hooks/useSetProgramStatus';
+import { useResolveProgramJournal } from '../../journal/hooks/useResolveProgramJournal';
 import { ProgramDetailScreen } from './ProgramDetailScreen';
 
 jest.mock('expo-router', () => ({ useRouter: jest.fn() }));
 jest.mock('../hooks/useProgram', () => ({ useProgram: jest.fn() }));
 jest.mock('../hooks/useDeleteProgram', () => ({ useDeleteProgram: jest.fn() }));
+jest.mock('../hooks/useSetProgramStatus', () => ({ useSetProgramStatus: jest.fn() }));
+jest.mock('../../journal/hooks/useResolveProgramJournal', () => ({
+  useResolveProgramJournal: jest.fn(),
+}));
 
 const mockedUseRouter = jest.mocked(useRouter);
 const mockedUseProgram = jest.mocked(useProgram);
 const mockedUseDeleteProgram = jest.mocked(useDeleteProgram);
+const mockedUseSetProgramStatus = jest.mocked(useSetProgramStatus);
+const mockedUseResolveProgramJournal = jest.mocked(useResolveProgramJournal);
 
 const program = {
   id: 'program-1',
@@ -34,6 +42,8 @@ const program = {
 describe('ProgramDetailScreen', () => {
   let push: jest.Mock;
   let deleteMutate: jest.Mock;
+  let setStatusMutate: jest.Mock;
+  let resolveJournalMutate: jest.Mock;
 
   beforeEach(() => {
     push = jest.fn();
@@ -46,6 +56,18 @@ describe('ProgramDetailScreen', () => {
       isPending: false,
       isError: false,
     } as unknown as ReturnType<typeof useDeleteProgram>);
+    setStatusMutate = jest.fn();
+    mockedUseSetProgramStatus.mockReturnValue({
+      mutate: setStatusMutate,
+      isPending: false,
+      isError: false,
+    } as unknown as ReturnType<typeof useSetProgramStatus>);
+    resolveJournalMutate = jest.fn();
+    mockedUseResolveProgramJournal.mockReturnValue({
+      mutate: resolveJournalMutate,
+      isPending: false,
+      isError: false,
+    } as unknown as ReturnType<typeof useResolveProgramJournal>);
   });
 
   it('shows a loading indicator while the program is loading', async () => {
@@ -153,5 +175,70 @@ describe('ProgramDetailScreen', () => {
     await fireEvent.press(screen.getByTestId('program-detail-delete'));
 
     expect(screen.getByTestId('delete-program-error')).toBeTruthy();
+  });
+
+  it('resolves the journal and navigates when Start a journal is pressed', async () => {
+    mockedUseProgram.mockReturnValue({
+      isLoading: false,
+      isError: false,
+      data: program,
+    } as unknown as ReturnType<typeof useProgram>);
+
+    await render(<ProgramDetailScreen userId="user-1" programId="program-1" />);
+    await fireEvent.press(screen.getByTestId('program-detail-start-journal'));
+
+    expect(resolveJournalMutate).toHaveBeenCalledWith(
+      { programId: 'program-1', programName: 'Push / Pull / Legs' },
+      expect.objectContaining({ onSuccess: expect.any(Function) }),
+    );
+    resolveJournalMutate.mock.calls[0][1].onSuccess({ id: 'journal-1' });
+    expect(push).toHaveBeenCalledWith('/journal/journal-1');
+  });
+
+  it('shows an error when starting a journal fails', async () => {
+    mockedUseProgram.mockReturnValue({
+      isLoading: false,
+      isError: false,
+      data: program,
+    } as unknown as ReturnType<typeof useProgram>);
+    mockedUseResolveProgramJournal.mockReturnValue({
+      mutate: resolveJournalMutate,
+      isPending: false,
+      isError: true,
+    } as unknown as ReturnType<typeof useResolveProgramJournal>);
+
+    await render(<ProgramDetailScreen userId="user-1" programId="program-1" />);
+
+    expect(screen.getByTestId('program-detail-start-journal-error')).toBeTruthy();
+  });
+
+  it('archives an active program when the status toggle is pressed', async () => {
+    mockedUseProgram.mockReturnValue({
+      isLoading: false,
+      isError: false,
+      data: program,
+    } as unknown as ReturnType<typeof useProgram>);
+
+    await render(<ProgramDetailScreen userId="user-1" programId="program-1" />);
+
+    expect(screen.getByText('Archive program')).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('program-detail-toggle-status'));
+
+    expect(setStatusMutate).toHaveBeenCalledWith('archived');
+  });
+
+  it('offers to set an archived program active, with a status badge', async () => {
+    mockedUseProgram.mockReturnValue({
+      isLoading: false,
+      isError: false,
+      data: { ...program, status: 'archived' as const },
+    } as unknown as ReturnType<typeof useProgram>);
+
+    await render(<ProgramDetailScreen userId="user-1" programId="program-1" />);
+
+    expect(screen.getByText('Archived')).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('program-detail-toggle-status'));
+
+    expect(setStatusMutate).toHaveBeenCalledWith('active');
   });
 });

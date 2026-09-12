@@ -122,7 +122,14 @@
     "deleteSheetBody": "Цю дію не можна скасувати. Історія щоденника за цією програмою збережеться.",
     "deleteSheetConfirm": "Видалити програму",
     "deleteSheetKeepGoing": "Залишити",
-    "deleteError": "Не вдалося видалити програму. Спробуйте ще раз."
+    "deleteError": "Не вдалося видалити програму. Спробуйте ще раз.",
+    "tabPrograms": "Програми",
+    "tabJournals": "Щоденники",
+    "startJournal": "Почати щоденник за цією програмою",
+    "startJournalError": "Не вдалося почати щоденник. Спробуйте ще раз.",
+    "setActive": "Зробити активною",
+    "archiveProgram": "Архівувати програму",
+    "statusError": "Не вдалося оновити програму. Спробуйте ще раз."
   },
   "exercises": {
     "pickerTitle": "Оберіть вправу",
@@ -170,7 +177,19 @@
     "saveDiscardBody": "Є незбережені підходи. Збережіть їх перед виходом або скасуйте.",
     "saveDiscardSave": "Зберегти запис",
     "saveDiscardDiscard": "Скасувати",
-    "saveDiscardKeepEditing": "Продовжити редагування"
+    "saveDiscardKeepEditing": "Продовжити редагування",
+    "journalsLoadError": "Не вдалося завантажити щоденники.",
+    "journalsEmptyTitle": "Ще немає щоденників",
+    "journalsEmptyBody": "Почніть щоденник з однієї з програм, щоб побачити його тут.",
+    "noProgram": "Без програми",
+    "archive": "Архівувати",
+    "unarchive": "Розархівувати",
+    "statusError": "Не вдалося оновити щоденник. Спробуйте ще раз.",
+    "deleteSheetTitle": "Видалити цей щоденник?",
+    "deleteSheetBody": "Цю дію не можна скасувати. Усі записи цього щоденника також буде видалено.",
+    "deleteSheetConfirm": "Видалити щоденник",
+    "deleteSheetKeepGoing": "Залишити",
+    "deleteError": "Не вдалося видалити щоденник. Спробуйте ще раз."
   },
   "progress": {
     "title": "Прогрес",

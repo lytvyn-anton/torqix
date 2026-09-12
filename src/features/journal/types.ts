@@ -23,7 +23,19 @@ export type ExerciseSummary = {
 export type Journal = {
   id: string;
   name: string;
+  status: 'active' | 'archived';
   programId: string | null;
+  createdAt: string;
+};
+
+// One row in the Programs screen's Journals list — the program's current name (if the
+// journal is still linked to one) so each row shows at a glance which program it belongs
+// to, without the full per-journal detail fetch used elsewhere.
+export type JournalSummary = {
+  id: string;
+  name: string;
+  status: 'active' | 'archived';
+  programName: string | null;
   createdAt: string;
 };
 
