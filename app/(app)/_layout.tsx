@@ -10,7 +10,11 @@ export default function AppLayout() {
 
   return (
     <Stack
-      screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}
+      screenOptions={{
+        headerShown: false,
+        headerBackButtonDisplayMode: 'minimal',
+        contentStyle: { backgroundColor: colors.background },
+      }}
     >
       <Stack.Screen name="(tabs)" />
       <Stack.Screen
