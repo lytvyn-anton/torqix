@@ -93,9 +93,8 @@ export async function getProgram(programId: string): Promise<ProgramDetail> {
 }
 
 // Hard-deletes the program row; program_days and program_day_exercises cascade away via
-// their FKs. workout_sessions.program_day_id is ON DELETE SET NULL (not cascade), so any
-// session history already logged against this program survives with a blank day name —
-// see workoutsApi's programDayName, which already tolerates a null program_days join.
+// their FKs. journal_entries.program_day_id is ON DELETE SET NULL (not cascade), so any
+// journal history already logged against this program survives with a blank day name.
 export async function deleteProgram(programId: string): Promise<void> {
   const { error } = await supabase.from('workout_programs').delete().eq('id', programId);
   if (error) throw error;
@@ -104,8 +103,8 @@ export async function deleteProgram(programId: string): Promise<void> {
 // Replaces a program's name and its day/exercise list, matching input days to existing
 // ones by id (ProgramDetailDay.id, threaded through ProgramForm) rather than by name — an
 // unambiguous primary-key match, unlike a name, which two days can share or a rename can
-// change. An unchanged/renamed day that keeps its id also keeps any workout_sessions
-// already logged against it: workout_sessions.program_day_id is ON DELETE SET NULL (not
+// change. An unchanged/renamed day that keeps its id also keeps any journal_entries
+// already logged against it: journal_entries.program_day_id is ON DELETE SET NULL (not
 // cascade), so a naive delete-all-days-then-reinsert would hand every day a fresh id on
 // every single edit, permanently blanking the day label on all of that program's history
 // the moment any unrelated field was changed. Only a day genuinely added fresh in the form
@@ -254,18 +253,17 @@ async function deleteOrphanedProgram(programId: string): Promise<void> {
   }
 }
 
-// Creates a program with the given name, days, and each day's exercises, then archives
-// any other active program for this user so getActiveProgram always resolves to the one
-// just created — there's no archive/deactivate UI yet, so without this a second program
-// would silently become "active" by recency while the first stayed active-but-stale
-// forever, and the Programs list would show two "active" (unbadged) rows.
+// Creates a program with the given name, days, and each day's exercises. No longer archives
+// any other active program as a side effect — that becomes a manual Programs-screen action in
+// a later PR of the Journal pivot (PLAN.md Phase 5, PR 4). Until that ships, nothing stops a
+// user from ending up with more than one status='active' program; getActiveProgram's "newest
+// wins" tiebreak (see its own comment above) is what keeps that survivable in the meantime.
 //
-// Four sequential writes rather than one transaction — supabase-js has no client-side
+// Three sequential writes rather than one transaction — supabase-js has no client-side
 // transaction API — deliberately ordered so an earlier failure leaves prior state
 // untouched: each insert only runs after its parent exists, and a failure at the days or
 // day-exercises step deletes the program (cascading to any days/exercises already
-// inserted for it) instead of leaving an orphan. Archiving other programs only runs once
-// every insert has succeeded.
+// inserted for it) instead of leaving an orphan.
 export async function createProgram(userId: string, input: CreateProgramInput): Promise<Program> {
   if (input.days.length === 0) {
     throw new Error('createProgram requires at least one day');
@@ -322,20 +320,6 @@ export async function createProgram(userId: string, input: CreateProgramInput): 
       await deleteOrphanedProgram(program.id);
       throw exercisesError;
     }
-  }
-
-  const { error: archiveError } = await supabase
-    .from('workout_programs')
-    .update({ status: 'archived' })
-    .eq('user_id', userId)
-    .eq('status', 'active')
-    .neq('id', program.id);
-  if (archiveError) {
-    // Without this cleanup, a failed archive step would leave the just-created program
-    // active alongside the one it was supposed to replace — the exact "two active
-    // programs" state this function exists to prevent (see header comment).
-    await deleteOrphanedProgram(program.id);
-    throw archiveError;
   }
 
   return {
