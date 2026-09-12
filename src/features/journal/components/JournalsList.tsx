@@ -209,10 +209,12 @@ function buildRowStyles(colors: ThemeColors) {
     },
     cardHeader: {
       flexDirection: 'row',
-      alignItems: 'center',
+      alignItems: 'flex-start',
       justifyContent: 'space-between',
+      gap: spacing.sm,
     },
     name: {
+      flexShrink: 1,
       fontFamily: fonts.headingBold,
       fontWeight: fonts.headingBoldWeight,
       fontSize: 16,
