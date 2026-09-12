@@ -72,12 +72,12 @@
   "home": {
     "title": "Home",
     "emptyTitle": "No active program",
-    "emptyBody": "Start a journal to begin tracking your workouts",
-    "newJournalCta": "+ New journal",
+    "emptyBody": "Start a note to begin tracking your workouts",
+    "newJournalCta": "+ New note",
     "activeProgramLabel": "Active program",
     "logDay": "Log",
     "noDays": "This program has no days set up yet.",
-    "startJournalError": "Couldn't start your journal. Try again.",
+    "startJournalError": "Couldn't start your note. Try again.",
     "loadError": "Couldn't load your program."
   },
   "programs": {
@@ -120,7 +120,7 @@
     "delete": "Delete",
     "weightUnit": "kg",
     "deleteSheetTitle": "Delete this program?",
-    "deleteSheetBody": "This can't be undone. Journal history for this program will be kept.",
+    "deleteSheetBody": "This can't be undone. Notes logged for this program will be kept.",
     "deleteSheetConfirm": "Delete program",
     "deleteSheetKeepGoing": "Keep it",
     "deleteError": "Couldn't delete the program. Try again."
@@ -146,16 +146,16 @@
     }
   },
   "journal": {
-    "title": "Journal",
-    "newJournalTitle": "Start a journal",
+    "title": "Note",
+    "newJournalTitle": "Start a note",
     "newEntryTitle": "New entry",
-    "loadError": "Couldn't load this journal.",
+    "loadError": "Couldn't load this note.",
     "newEntry": "+ New entry",
-    "emptyBody": "No entries yet. Log your first one to start this journal.",
+    "emptyBody": "No entries yet. Log your first one to start this note.",
     "noDay": "No day",
     "setCount": "{{count}} sets",
     "orphanedTitle": "Program deleted",
-    "orphanedBody": "The program this journal belonged to was deleted, so there's nothing left to log here.",
+    "orphanedBody": "The program this note belonged to was deleted, so there's nothing left to log here.",
     "noDaysTitle": "No days to log",
     "noDaysBody": "This program has no days set up yet, so there's nothing to log against.",
     "chooseDayTitle": "Which day?",
