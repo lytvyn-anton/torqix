@@ -64,7 +64,6 @@ export default function AppLayout() {
           headerTintColor: colors.textPrimary,
         }}
       />
-      <Stack.Screen name="workout-session" options={{ headerShown: false }} />
       <Stack.Screen
         name="exercise-progress/[exerciseId]"
         options={{
@@ -75,7 +74,6 @@ export default function AppLayout() {
           headerTintColor: colors.textPrimary,
         }}
       />
-      <Stack.Screen name="workout-complete" options={{ headerShown: false }} />
       <Stack.Screen
         name="settings"
         options={{

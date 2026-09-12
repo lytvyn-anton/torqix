@@ -3,9 +3,6 @@ import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import { useActiveProgram } from '../../programs/hooks/useActiveProgram';
-import { useProgramDays } from '../../workouts/hooks/useProgramDays';
-import { useStartWorkoutSession } from '../../workouts/hooks/useStartWorkoutSession';
-import { useTodaySession } from '../../workouts/hooks/useTodaySession';
 import { ProgramsIcon } from '../../../shared/components/icons/TabIcons';
 import { useFormStyles } from '../../../shared/theme/formStyles';
 import { useTheme } from '../../../shared/theme/ThemeProvider';
@@ -15,15 +12,11 @@ type Props = {
   userId: string;
   onCreateProgram: () => void;
   onGenerateProgram: () => void;
-  onOpenWorkout: (sessionId: string) => void;
 };
 
-export function TodayScreen({ userId, onCreateProgram, onGenerateProgram, onOpenWorkout }: Props) {
+export function TodayScreen({ userId, onCreateProgram, onGenerateProgram }: Props) {
   const { t } = useTranslation();
   const activeProgramQuery = useActiveProgram(userId);
-  const todaySessionQuery = useTodaySession(userId);
-  const programDaysQuery = useProgramDays(activeProgramQuery.data?.id);
-  const startWorkoutSession = useStartWorkoutSession(userId);
   const { colors } = useTheme();
   const formStyles = useFormStyles();
   const styles = useMemo(() => buildStyles(colors), [colors]);
@@ -76,66 +69,13 @@ export function TodayScreen({ userId, onCreateProgram, onGenerateProgram, onOpen
     );
   }
 
-  // Gate on the initial fetch only (not background refetches) — otherwise this can render
-  // the day picker before we know an in-progress session exists, and starting a new
-  // session from there would orphan the real one instead of resuming it.
-  if (todaySessionQuery.isLoading) {
-    return (
-      <View style={styles.centered} testID="today-loading">
-        <ActivityIndicator color={colors.accent} />
-      </View>
-    );
-  }
-
-  const todaySession = todaySessionQuery.data;
-
-  if (todaySession) {
-    return (
-      <View style={styles.centered} testID="today-continue-workout">
-        <Text style={styles.activeProgramLabel}>{t('today.activeProgramLabel')}</Text>
-        <Text style={styles.activeProgramName}>{activeProgram.name}</Text>
-        <TouchableOpacity
-          style={[formStyles.primaryButton, styles.emptyCta]}
-          onPress={() => onOpenWorkout(todaySession.id)}
-          testID="today-continue-session"
-          accessibilityRole="button"
-        >
-          <Text style={formStyles.primaryButtonText}>
-            {t('today.continueWorkout')} — {todaySession.programDayName}
-          </Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
-  const handleStartDay = (programDayId: string) => {
-    startWorkoutSession.mutate(programDayId, {
-      onSuccess: (session) => onOpenWorkout(session.id),
-    });
-  };
-
+  // Temporary, minimal state: the Journal-focused Home card (PR #3 of the Journal pivot,
+  // see PLAN.md's Phase 5 section) replaces this with real content shortly. For now this just
+  // avoids referencing the retired workout-session flow.
   return (
-    <View style={styles.centered} testID="today-choose-day">
+    <View style={styles.centered} testID="today-active-program">
       <Text style={styles.activeProgramLabel}>{t('today.activeProgramLabel')}</Text>
       <Text style={styles.activeProgramName}>{activeProgram.name}</Text>
-      <Text style={styles.chooseDayTitle}>{t('today.chooseDayTitle')}</Text>
-      {(programDaysQuery.data ?? []).map((day) => (
-        <TouchableOpacity
-          key={day.id}
-          style={[formStyles.primaryButton, styles.dayButton]}
-          onPress={() => handleStartDay(day.id)}
-          disabled={startWorkoutSession.isPending}
-          testID={`today-start-day-${day.id}`}
-          accessibilityRole="button"
-        >
-          <Text style={formStyles.primaryButtonText}>{day.name}</Text>
-        </TouchableOpacity>
-      ))}
-      {startWorkoutSession.isError && (
-        <Text style={styles.error} testID="today-start-error">
-          {t('today.startError')}
-        </Text>
-      )}
     </View>
   );
 }
@@ -198,16 +138,6 @@ function buildStyles(colors: ThemeColors) {
       fontWeight: fonts.headingWeight,
       fontSize: 20,
       color: colors.textPrimary,
-    },
-    chooseDayTitle: {
-      fontSize: 13,
-      color: colors.textMuted,
-      marginTop: spacing.sm,
-    },
-    dayButton: {
-      paddingVertical: spacing.md,
-      paddingHorizontal: spacing.xl,
-      minWidth: 200,
     },
   });
 }
