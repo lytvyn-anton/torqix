@@ -1,25 +1,29 @@
 import { useRouter } from 'expo-router';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
 import { JournalWidgetCard } from '../components/JournalWidgetCard';
+import { ProgramsWidgetCard } from '../components/ProgramsWidgetCard';
 import { useActiveProgram } from '../../programs/hooks/useActiveProgram';
-import { ProgramsIcon } from '../../../shared/components/icons/TabIcons';
-import { useFormStyles } from '../../../shared/theme/formStyles';
 import { useTheme } from '../../../shared/theme/ThemeProvider';
-import { fonts, spacing, type ThemeColors } from '../../../shared/theme/theme';
+import { spacing, type ThemeColors } from '../../../shared/theme/theme';
 
 type Props = {
   userId: string;
 };
 
+// Phase 6's Program/Journal separation (see PLAN.md): two independent widgets rather than
+// the old single Journal-widget-that-also-shows-the-program-and-auto-creates-a-journal.
+// Loading/hard-error states still gate on the active-program fetch alone — both widgets need
+// to know whether one exists (ProgramsWidgetCard to render itself, JournalWidgetCard to offer
+// "start a journal from this program") — but neither widget's own content depends on the
+// other actually existing.
 export function HomeScreen({ userId }: Props) {
   const { t } = useTranslation();
   const router = useRouter();
   const activeProgramQuery = useActiveProgram(userId);
   const { colors } = useTheme();
-  const formStyles = useFormStyles();
   const styles = useMemo(() => buildStyles(colors), [colors]);
 
   if (activeProgramQuery.isLoading) {
@@ -41,44 +45,16 @@ export function HomeScreen({ userId }: Props) {
     );
   }
 
-  const activeProgram = activeProgramQuery.data;
-
-  if (!activeProgram) {
-    return (
-      <View style={styles.centered} testID="home-empty">
-        <View style={styles.emptyIcon}>
-          <ProgramsIcon color={colors.accentDark} size={24} />
-        </View>
-        <Text style={styles.emptyTitle}>{t('home.emptyTitle')}</Text>
-        <Text style={styles.emptyBody}>{t('home.emptyBody')}</Text>
-        <TouchableOpacity
-          style={[formStyles.primaryButton, styles.emptyCta]}
-          onPress={() => router.push('/program-generate?intent=journal')}
-          testID="home-empty-generate-cta"
-          accessibilityRole="button"
-        >
-          <Text style={formStyles.primaryButtonText}>{t('programs.generateSubmit')}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => router.push('/program-create?intent=journal')}
-          testID="home-empty-cta"
-          accessibilityRole="button"
-        >
-          <Text style={styles.emptyManualLink}>{t('programs.createManually')}</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
+  const activeProgram = activeProgramQuery.data ?? undefined;
 
   return (
-    <View style={styles.container} testID="home-active-program">
-      <JournalWidgetCard
-        userId={userId}
-        programId={activeProgram.id}
-        programName={activeProgram.name}
-        onGenerateProgram={() => router.push('/program-generate?intent=journal')}
-        onCreateProgram={() => router.push('/program-create?intent=journal')}
+    <View style={styles.container} testID="home-widgets">
+      <ProgramsWidgetCard
+        activeProgram={activeProgram}
+        onGenerateProgram={() => router.push('/program-generate')}
+        onCreateProgram={() => router.push('/program-create')}
       />
+      <JournalWidgetCard userId={userId} activeProgram={activeProgram} />
     </View>
   );
 }
@@ -91,6 +67,7 @@ function buildStyles(colors: ThemeColors) {
       // tab navigator (app/(app)/(tabs)/_layout.tsx) and shows through here.
       backgroundColor: 'transparent',
       padding: spacing.xl,
+      gap: spacing.xl,
     },
     centered: {
       flex: 1,
@@ -102,37 +79,6 @@ function buildStyles(colors: ThemeColors) {
     },
     error: {
       color: colors.error,
-    },
-    emptyIcon: {
-      width: 52,
-      height: 52,
-      borderRadius: 26,
-      backgroundColor: colors.accentTint,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginBottom: spacing.sm,
-    },
-    emptyTitle: {
-      fontFamily: fonts.headingBold,
-      fontWeight: fonts.headingBoldWeight,
-      fontSize: 15,
-      color: colors.textPrimary,
-    },
-    emptyBody: {
-      fontSize: 13,
-      color: colors.textMuted,
-      textAlign: 'center',
-    },
-    emptyCta: {
-      paddingVertical: spacing.md,
-      paddingHorizontal: spacing.xl,
-      marginTop: spacing.sm,
-    },
-    emptyManualLink: {
-      color: colors.accentDark,
-      fontWeight: '600',
-      fontSize: 13,
-      marginTop: spacing.sm,
     },
   });
 }
