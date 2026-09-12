@@ -1,7 +1,9 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
+import { JournalWidgetCard } from '../components/JournalWidgetCard';
+import { NewJournalSheet } from '../../journal/components/NewJournalSheet';
 import { useActiveProgram } from '../../programs/hooks/useActiveProgram';
 import { ProgramsIcon } from '../../../shared/components/icons/TabIcons';
 import { useFormStyles } from '../../../shared/theme/formStyles';
@@ -14,16 +16,17 @@ type Props = {
   onGenerateProgram: () => void;
 };
 
-export function TodayScreen({ userId, onCreateProgram, onGenerateProgram }: Props) {
+export function HomeScreen({ userId, onCreateProgram, onGenerateProgram }: Props) {
   const { t } = useTranslation();
   const activeProgramQuery = useActiveProgram(userId);
   const { colors } = useTheme();
   const formStyles = useFormStyles();
   const styles = useMemo(() => buildStyles(colors), [colors]);
+  const [sheetVisible, setSheetVisible] = useState(false);
 
   if (activeProgramQuery.isLoading) {
     return (
-      <View style={styles.centered} testID="today-loading">
+      <View style={styles.centered} testID="home-loading">
         <ActivityIndicator color={colors.accent} />
       </View>
     );
@@ -34,8 +37,8 @@ export function TodayScreen({ userId, onCreateProgram, onGenerateProgram }: Prop
   // already-loaded active program — see ProfileScreen for the same guard.
   if (activeProgramQuery.isError && activeProgramQuery.data === undefined) {
     return (
-      <View style={styles.centered} testID="today-load-error">
-        <Text style={styles.error}>{t('today.loadError')}</Text>
+      <View style={styles.centered} testID="home-load-error">
+        <Text style={styles.error}>{t('home.loadError')}</Text>
       </View>
     );
   }
@@ -44,50 +47,63 @@ export function TodayScreen({ userId, onCreateProgram, onGenerateProgram }: Prop
 
   if (!activeProgram) {
     return (
-      <View style={styles.centered} testID="today-empty">
+      <View style={styles.centered} testID="home-empty">
         <View style={styles.emptyIcon}>
           <ProgramsIcon color={colors.accentDark} size={24} />
         </View>
-        <Text style={styles.emptyTitle}>{t('today.emptyTitle')}</Text>
-        <Text style={styles.emptyBody}>{t('today.emptyBody')}</Text>
+        <Text style={styles.emptyTitle}>{t('home.emptyTitle')}</Text>
+        <Text style={styles.emptyBody}>{t('home.emptyBody')}</Text>
         <TouchableOpacity
           style={[formStyles.primaryButton, styles.emptyCta]}
-          onPress={onGenerateProgram}
-          testID="today-generate-program"
+          onPress={() => setSheetVisible(true)}
+          testID="home-new-journal"
           accessibilityRole="button"
         >
-          <Text style={formStyles.primaryButtonText}>{t('programs.generateSubmit')}</Text>
+          <Text style={formStyles.primaryButtonText}>{t('home.newJournalCta')}</Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          onPress={onCreateProgram}
-          testID="today-create-program"
-          accessibilityRole="button"
-        >
-          <Text style={styles.emptyManualLink}>{t('today.emptyCta')}</Text>
-        </TouchableOpacity>
+
+        <NewJournalSheet
+          visible={sheetVisible}
+          onGenerate={() => {
+            setSheetVisible(false);
+            onGenerateProgram();
+          }}
+          onCreateManually={() => {
+            setSheetVisible(false);
+            onCreateProgram();
+          }}
+          onClose={() => setSheetVisible(false)}
+        />
       </View>
     );
   }
 
-  // Temporary, minimal state: the Journal-focused Home card (PR #3 of the Journal pivot,
-  // see PLAN.md's Phase 5 section) replaces this with real content shortly. For now this just
-  // avoids referencing the retired workout-session flow.
   return (
-    <View style={styles.centered} testID="today-active-program">
-      <Text style={styles.activeProgramLabel}>{t('today.activeProgramLabel')}</Text>
-      <Text style={styles.activeProgramName}>{activeProgram.name}</Text>
+    <View style={styles.container} testID="home-active-program">
+      <JournalWidgetCard
+        userId={userId}
+        programId={activeProgram.id}
+        programName={activeProgram.name}
+        onGenerateProgram={onGenerateProgram}
+        onCreateProgram={onCreateProgram}
+      />
     </View>
   );
 }
 
 function buildStyles(colors: ThemeColors) {
   return StyleSheet.create({
+    container: {
+      flex: 1,
+      // Transparent, not colors.background — the ambient Background sits behind the whole
+      // tab navigator (app/(app)/(tabs)/_layout.tsx) and shows through here.
+      backgroundColor: 'transparent',
+      padding: spacing.xl,
+    },
     centered: {
       flex: 1,
       alignItems: 'center',
       justifyContent: 'center',
-      // Transparent, not colors.background — the ambient Background sits behind the whole
-      // tab navigator (app/(app)/(tabs)/_layout.tsx) and shows through here.
       backgroundColor: 'transparent',
       padding: spacing.xl,
       gap: spacing.md,
@@ -119,25 +135,6 @@ function buildStyles(colors: ThemeColors) {
       paddingVertical: spacing.md,
       paddingHorizontal: spacing.xl,
       marginTop: spacing.sm,
-    },
-    emptyManualLink: {
-      color: colors.accentDark,
-      fontWeight: '600',
-      fontSize: 13,
-      marginTop: spacing.sm,
-    },
-    activeProgramLabel: {
-      fontSize: 11,
-      fontWeight: '600',
-      color: colors.textMuted,
-      textTransform: 'uppercase',
-      letterSpacing: 0.4,
-    },
-    activeProgramName: {
-      fontFamily: fonts.heading,
-      fontWeight: fonts.headingWeight,
-      fontSize: 20,
-      color: colors.textPrimary,
     },
   });
 }

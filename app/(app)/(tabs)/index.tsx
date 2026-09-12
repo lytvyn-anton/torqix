@@ -1,18 +1,18 @@
 import { useRouter } from 'expo-router';
 
-import { TodayScreen } from '../../../src/features/today/screens/TodayScreen';
+import { HomeScreen } from '../../../src/features/home/screens/HomeScreen';
 import { useSession } from '../../../src/shared/auth/SessionProvider';
 
-export default function TodayRoute() {
+export default function HomeRoute() {
   const { session } = useSession();
   const router = useRouter();
   if (!session) return null;
 
   return (
-    <TodayScreen
+    <HomeScreen
       userId={session.user.id}
-      onCreateProgram={() => router.push('/program-create')}
-      onGenerateProgram={() => router.push('/program-generate')}
+      onCreateProgram={() => router.push('/program-create?intent=journal')}
+      onGenerateProgram={() => router.push('/program-generate?intent=journal')}
     />
   );
 }

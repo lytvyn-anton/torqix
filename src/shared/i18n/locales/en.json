@@ -69,12 +69,15 @@
       "no_preference": "No preference"
     }
   },
-  "today": {
-    "title": "Today",
+  "home": {
+    "title": "Home",
     "emptyTitle": "No active program",
-    "emptyBody": "Create your first program to see today's workout here",
-    "emptyCta": "Create Your First Program",
+    "emptyBody": "Start a journal to begin tracking your workouts",
+    "newJournalCta": "+ New journal",
     "activeProgramLabel": "Active program",
+    "logDay": "Log",
+    "noDays": "This program has no days set up yet.",
+    "startJournalError": "Couldn't start your journal. Try again.",
     "loadError": "Couldn't load your program."
   },
   "programs": {
