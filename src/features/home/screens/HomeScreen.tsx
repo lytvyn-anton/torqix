@@ -14,10 +14,6 @@ type Props = {
   userId: string;
 };
 
-// No onCreateProgram/onGenerateProgram props (unlike the old TodayScreen this replaced) —
-// the always-visible way to start a *new* program's journal is NewJournalButton in the Home
-// tab's own header (app/(app)/(tabs)/_layout.tsx), not this screen; the empty-state CTAs
-// below route directly with `intent=journal`, mirroring ProgramsScreen's empty state.
 export function HomeScreen({ userId }: Props) {
   const { t } = useTranslation();
   const router = useRouter();
@@ -80,6 +76,8 @@ export function HomeScreen({ userId }: Props) {
         userId={userId}
         programId={activeProgram.id}
         programName={activeProgram.name}
+        onGenerateProgram={() => router.push('/program-generate?intent=journal')}
+        onCreateProgram={() => router.push('/program-create?intent=journal')}
       />
     </View>
   );

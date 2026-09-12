@@ -1,8 +1,9 @@
 import { useRouter } from 'expo-router';
-import { useMemo, useRef } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
+import { NewJournalSheet } from '../../journal/components/NewJournalSheet';
 import { useResolveProgramJournal } from '../../journal/hooks/useResolveProgramJournal';
 import { useProgram } from '../../programs/hooks/useProgram';
 import type { ProgramDetailDay } from '../../programs/types';
@@ -14,20 +15,30 @@ type Props = {
   userId: string;
   programId: string;
   programName: string;
+  onGenerateProgram: () => void;
+  onCreateProgram: () => void;
 };
 
 // Replaces the old flat "Active program" card (just a name, no way to act on it) — this is
 // the Home tab's actual entry point into the Journal pivot: it shows the active program's
 // days and, tapping one, resolves (or creates, first time) that program's journal and drops
 // the user straight into logging against that day. See PLAN.md's Phase 5 section, PR 3/4.
-// Starting a journal for a *different* (new) program is NewJournalButton, in the Home tab's
-// own header — not this card, which is scoped to the one active program.
-export function JournalWidgetCard({ userId, programId, programName }: Props) {
+// "+ New journal" sits on its own row below the (possibly multi-line) program name, not
+// sharing a row with it — a shared header row let a long, wrapped name push the button out
+// of alignment with the rest of the card.
+export function JournalWidgetCard({
+  userId,
+  programId,
+  programName,
+  onGenerateProgram,
+  onCreateProgram,
+}: Props) {
   const { t } = useTranslation();
   const router = useRouter();
   const { colors } = useTheme();
   const formStyles = useFormStyles();
   const styles = useMemo(() => buildStyles(colors), [colors]);
+  const [sheetVisible, setSheetVisible] = useState(false);
 
   const programQuery = useProgram(programId);
   const resolveJournal = useResolveProgramJournal(userId);
@@ -63,6 +74,15 @@ export function JournalWidgetCard({ userId, programId, programName }: Props) {
     <View style={[formStyles.glassSurface, styles.card]} testID="journal-widget-card">
       <Text style={styles.eyebrow}>{t('home.journalLabel')}</Text>
       <Text style={styles.programName}>{programName}</Text>
+
+      <TouchableOpacity
+        style={styles.newJournalRow}
+        onPress={() => setSheetVisible(true)}
+        accessibilityRole="button"
+        testID="journal-widget-new"
+      >
+        <Text style={styles.newJournalLink}>{t('home.newJournalCta')}</Text>
+      </TouchableOpacity>
 
       {programQuery.isLoading && (
         <View style={styles.centered} testID="journal-widget-loading">
@@ -103,6 +123,19 @@ export function JournalWidgetCard({ userId, programId, programName }: Props) {
           {t('home.startJournalError')}
         </Text>
       )}
+
+      <NewJournalSheet
+        visible={sheetVisible}
+        onGenerate={() => {
+          setSheetVisible(false);
+          onGenerateProgram();
+        }}
+        onCreateManually={() => {
+          setSheetVisible(false);
+          onCreateProgram();
+        }}
+        onClose={() => setSheetVisible(false)}
+      />
     </View>
   );
 }
@@ -128,6 +161,14 @@ function buildStyles(colors: ThemeColors) {
       fontSize: 18,
       color: colors.textPrimary,
       marginTop: spacing.xs,
+    },
+    newJournalRow: {
+      alignSelf: 'flex-start',
+    },
+    newJournalLink: {
+      color: colors.accentDark,
+      fontWeight: '600',
+      fontSize: 13,
     },
     centered: {
       alignItems: 'center',

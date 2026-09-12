@@ -12,7 +12,6 @@ import { useTranslation } from 'react-i18next';
 import { Platform, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { NewJournalButton } from '../../../src/features/journal/components/NewJournalButton';
 import { NewProgramButton } from '../../../src/features/programs/components/NewProgramButton';
 import { ProfileAvatarButton } from '../../../src/features/profile/components/ProfileAvatarButton';
 import { SettingsButton } from '../../../src/features/settings/components/SettingsButton';
@@ -49,18 +48,7 @@ const TABS: {
   Icon: (props: TabIconProps) => ReactNode;
   headerRight?: () => ReactNode;
 }[] = [
-  {
-    name: 'index',
-    titleKey: 'home.title',
-    Icon: HomeIcon,
-    headerRight: () => (
-      <View style={staticStyles.headerRight}>
-        <NewJournalButton />
-        <ProfileAvatarButton />
-        <SettingsButton />
-      </View>
-    ),
-  },
+  { name: 'index', titleKey: 'home.title', Icon: HomeIcon },
   {
     name: 'programs',
     titleKey: 'programs.title',
