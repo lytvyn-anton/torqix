@@ -2,13 +2,13 @@ import { fireEvent, screen } from '@testing-library/react-native';
 
 import '../../../shared/i18n';
 import { renderWithProviders as render } from '../../../shared/testing/renderWithProviders';
-import type { ExerciseProgressEntry } from '../../workouts/types';
+import type { ExerciseProgressEntry } from '../../journal/types';
 import { ExerciseProgressChart } from './ExerciseProgressChart';
 
 function entry(overrides: Partial<ExerciseProgressEntry>): ExerciseProgressEntry {
   return {
     id: 'log-1',
-    scheduledDate: '2026-09-01',
+    entryDate: '2026-09-01',
     setIndex: 0,
     repsDone: 10,
     weight: 40,
@@ -19,8 +19,8 @@ function entry(overrides: Partial<ExerciseProgressEntry>): ExerciseProgressEntry
 describe('ExerciseProgressChart', () => {
   it('renders nothing when fewer than two sessions have been logged', async () => {
     const entries = [
-      entry({ id: 'a', scheduledDate: '2026-09-01', setIndex: 0 }),
-      entry({ id: 'b', scheduledDate: '2026-09-01', setIndex: 1 }),
+      entry({ id: 'a', entryDate: '2026-09-01', setIndex: 0 }),
+      entry({ id: 'b', entryDate: '2026-09-01', setIndex: 1 }),
     ];
 
     const { toJSON } = await render(<ExerciseProgressChart entries={entries} locale="en-US" />);
@@ -32,8 +32,8 @@ describe('ExerciseProgressChart', () => {
     // Two sessions with weight logged (enough for the top-set chart), but reps missing on
     // both, so the volume series never reaches 2 points.
     const entries = [
-      entry({ id: 'a', scheduledDate: '2026-09-01', weight: 40, repsDone: null }),
-      entry({ id: 'b', scheduledDate: '2026-09-03', weight: 42.5, repsDone: null }),
+      entry({ id: 'a', entryDate: '2026-09-01', weight: 40, repsDone: null }),
+      entry({ id: 'b', entryDate: '2026-09-03', weight: 42.5, repsDone: null }),
     ];
 
     await render(<ExerciseProgressChart entries={entries} locale="en-US" />);
@@ -47,8 +47,8 @@ describe('ExerciseProgressChart', () => {
 
   it('plots the top-set series by default and switches to volume on tab press', async () => {
     const entries = [
-      entry({ id: 'a', scheduledDate: '2026-09-01', weight: 40, repsDone: 10 }),
-      entry({ id: 'b', scheduledDate: '2026-09-03', weight: 42.5, repsDone: 8 }),
+      entry({ id: 'a', entryDate: '2026-09-01', weight: 40, repsDone: 10 }),
+      entry({ id: 'b', entryDate: '2026-09-03', weight: 42.5, repsDone: 8 }),
     ];
 
     await render(<ExerciseProgressChart entries={entries} locale="en-US" />);

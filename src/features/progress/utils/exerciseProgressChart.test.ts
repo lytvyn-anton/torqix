@@ -1,10 +1,10 @@
-import type { ExerciseProgressEntry } from '../../workouts/types';
+import type { ExerciseProgressEntry } from '../../journal/types';
 import { buildExerciseProgressChartData } from './exerciseProgressChart';
 
 function entry(overrides: Partial<ExerciseProgressEntry>): ExerciseProgressEntry {
   return {
     id: 'log-1',
-    scheduledDate: '2026-09-01',
+    entryDate: '2026-09-01',
     setIndex: 0,
     repsDone: 10,
     weight: 40,
@@ -19,8 +19,8 @@ describe('buildExerciseProgressChartData', () => {
 
   it('collapses multiple sets on the same date into one point per series', () => {
     const entries = [
-      entry({ id: 'a', scheduledDate: '2026-09-01', setIndex: 0, weight: 40, repsDone: 10 }),
-      entry({ id: 'b', scheduledDate: '2026-09-01', setIndex: 1, weight: 42.5, repsDone: 8 }),
+      entry({ id: 'a', entryDate: '2026-09-01', setIndex: 0, weight: 40, repsDone: 10 }),
+      entry({ id: 'b', entryDate: '2026-09-01', setIndex: 1, weight: 42.5, repsDone: 8 }),
     ];
 
     const { topSet, volume } = buildExerciseProgressChartData(entries, 'en-US');
@@ -31,8 +31,8 @@ describe('buildExerciseProgressChartData', () => {
 
   it('sorts points chronologically regardless of input order', () => {
     const entries = [
-      entry({ id: 'a', scheduledDate: '2026-09-05', weight: 50, repsDone: 5 }),
-      entry({ id: 'b', scheduledDate: '2026-09-01', weight: 40, repsDone: 10 }),
+      entry({ id: 'a', entryDate: '2026-09-05', weight: 50, repsDone: 5 }),
+      entry({ id: 'b', entryDate: '2026-09-01', weight: 40, repsDone: 10 }),
     ];
 
     const { topSet } = buildExerciseProgressChartData(entries, 'en-US');
@@ -41,7 +41,7 @@ describe('buildExerciseProgressChartData', () => {
   });
 
   it('skips a top-set point on dates with no weight logged', () => {
-    const entries = [entry({ scheduledDate: '2026-09-01', weight: null, repsDone: 12 })];
+    const entries = [entry({ entryDate: '2026-09-01', weight: null, repsDone: 12 })];
 
     const { topSet, volume } = buildExerciseProgressChartData(entries, 'en-US');
 
@@ -50,7 +50,7 @@ describe('buildExerciseProgressChartData', () => {
   });
 
   it('skips a volume point when reps are missing even if weight is logged', () => {
-    const entries = [entry({ scheduledDate: '2026-09-01', weight: 40, repsDone: null })];
+    const entries = [entry({ entryDate: '2026-09-01', weight: 40, repsDone: null })];
 
     const { topSet, volume } = buildExerciseProgressChartData(entries, 'en-US');
 

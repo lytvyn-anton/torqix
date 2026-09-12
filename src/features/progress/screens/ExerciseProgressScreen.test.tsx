@@ -2,10 +2,10 @@ import { screen } from '@testing-library/react-native';
 
 import '../../../shared/i18n';
 import { renderWithProviders as render } from '../../../shared/testing/renderWithProviders';
-import { useExerciseProgress } from '../../workouts/hooks/useExerciseProgress';
+import { useExerciseProgress } from '../../journal/hooks/useExerciseProgress';
 import { ExerciseProgressScreen } from './ExerciseProgressScreen';
 
-jest.mock('../../workouts/hooks/useExerciseProgress', () => ({
+jest.mock('../../journal/hooks/useExerciseProgress', () => ({
   useExerciseProgress: jest.fn(),
 }));
 
@@ -53,8 +53,8 @@ describe('ExerciseProgressScreen', () => {
       isLoading: false,
       isError: false,
       data: [
-        { id: 'log-1', scheduledDate: '2026-09-01', setIndex: 0, repsDone: 10, weight: 40 },
-        { id: 'log-2', scheduledDate: '2026-09-01', setIndex: 1, repsDone: 8, weight: 42.5 },
+        { id: 'log-1', entryDate: '2026-09-01', setIndex: 0, repsDone: 10, weight: 40 },
+        { id: 'log-2', entryDate: '2026-09-01', setIndex: 1, repsDone: 8, weight: 42.5 },
       ],
     } as unknown as ReturnType<typeof useExerciseProgress>);
 
@@ -72,8 +72,8 @@ describe('ExerciseProgressScreen', () => {
       isLoading: false,
       isError: false,
       data: [
-        { id: 'log-1', scheduledDate: '2026-09-01', setIndex: 0, repsDone: 10, weight: 40 },
-        { id: 'log-2', scheduledDate: '2026-09-01', setIndex: 1, repsDone: 8, weight: 42.5 },
+        { id: 'log-1', entryDate: '2026-09-01', setIndex: 0, repsDone: 10, weight: 40 },
+        { id: 'log-2', entryDate: '2026-09-01', setIndex: 1, repsDone: 8, weight: 42.5 },
       ],
     } as unknown as ReturnType<typeof useExerciseProgress>);
 
@@ -87,8 +87,8 @@ describe('ExerciseProgressScreen', () => {
       isLoading: false,
       isError: false,
       data: [
-        { id: 'log-1', scheduledDate: '2026-09-01', setIndex: 0, repsDone: 10, weight: 40 },
-        { id: 'log-2', scheduledDate: '2026-09-03', setIndex: 0, repsDone: 10, weight: 42.5 },
+        { id: 'log-1', entryDate: '2026-09-01', setIndex: 0, repsDone: 10, weight: 40 },
+        { id: 'log-2', entryDate: '2026-09-03', setIndex: 0, repsDone: 10, weight: 42.5 },
       ],
     } as unknown as ReturnType<typeof useExerciseProgress>);
 
