@@ -5,37 +5,27 @@ import '../../../shared/i18n';
 import { renderWithProviders as render } from '../../../shared/testing/renderWithProviders';
 import { useExercises } from '../../exercises/hooks/useExercises';
 import { useCreateProgram } from '../hooks/useCreateProgram';
-import { useCreateJournal } from '../../journal/hooks/useCreateJournal';
 import { ProgramCreateScreen } from './ProgramCreateScreen';
 
 jest.mock('expo-router', () => ({ useRouter: jest.fn() }));
 jest.mock('../hooks/useCreateProgram', () => ({ useCreateProgram: jest.fn() }));
-jest.mock('../../journal/hooks/useCreateJournal', () => ({ useCreateJournal: jest.fn() }));
 jest.mock('../../exercises/hooks/useExercises', () => ({ useExercises: jest.fn() }));
 
 const mockedUseRouter = jest.mocked(useRouter);
 const mockedUseCreateProgram = jest.mocked(useCreateProgram);
-const mockedUseCreateJournal = jest.mocked(useCreateJournal);
 const mockedUseExercises = jest.mocked(useExercises);
 
 describe('ProgramCreateScreen', () => {
   let back: jest.Mock;
-  let replace: jest.Mock;
 
   beforeEach(() => {
     back = jest.fn();
-    replace = jest.fn();
-    mockedUseRouter.mockReturnValue({ back, replace } as unknown as ReturnType<typeof useRouter>);
+    mockedUseRouter.mockReturnValue({ back } as unknown as ReturnType<typeof useRouter>);
     mockedUseExercises.mockReturnValue({
       data: [{ id: 'ex-1', name: 'Back Squat', muscleGroup: 'legs', equipment: ['barbell'] }],
       isLoading: false,
       isError: false,
     } as unknown as ReturnType<typeof useExercises>);
-    mockedUseCreateJournal.mockReturnValue({
-      mutate: jest.fn(),
-      isPending: false,
-      isError: false,
-    } as unknown as ReturnType<typeof useCreateJournal>);
   });
 
   it('disables save until a name and at least one non-blank day are entered', async () => {
@@ -197,68 +187,22 @@ describe('ProgramCreateScreen', () => {
     expect(screen.getByTestId('program-form-error')).toBeTruthy();
   });
 
-  it('creates a journal and jumps straight into logging when intent is journal', async () => {
-    const createProgramMutate = jest.fn((_input, options) => {
+  it('goes back to the Programs screen on save', async () => {
+    const mutate = jest.fn((_input, options) => {
       options.onSuccess({ id: 'program-1', name: 'Legs', status: 'active', createdAt: '2026' });
     });
     mockedUseCreateProgram.mockReturnValue({
-      mutate: createProgramMutate,
+      mutate,
       isPending: false,
       isError: false,
     } as unknown as ReturnType<typeof useCreateProgram>);
-    const createJournalMutate = jest.fn((_input, options) => {
-      options.onSuccess({ id: 'journal-1' });
-    });
-    mockedUseCreateJournal.mockReturnValue({
-      mutate: createJournalMutate,
-      isPending: false,
-      isError: false,
-    } as unknown as ReturnType<typeof useCreateJournal>);
 
-    await render(<ProgramCreateScreen userId="user-1" intent="journal" />);
+    await render(<ProgramCreateScreen userId="user-1" />);
 
     await fireEvent.changeText(screen.getByTestId('program-form-name'), 'Legs');
     await fireEvent.changeText(screen.getByTestId('program-form-day-0'), 'Leg day');
     await fireEvent.press(screen.getByTestId('program-form-save'));
 
-    expect(createJournalMutate).toHaveBeenCalledWith(
-      { programId: 'program-1', name: 'Legs' },
-      expect.objectContaining({ onSuccess: expect.any(Function) }),
-    );
-    expect(replace).toHaveBeenCalledWith('/journal-entry/journal-1');
-    expect(back).not.toHaveBeenCalled();
-  });
-
-  it('navigates to the saved program (not back, not the create-error text) when only journal creation fails', async () => {
-    const createProgramMutate = jest.fn((_input, options) => {
-      options.onSuccess({ id: 'program-1', name: 'Legs', status: 'active', createdAt: '2026' });
-    });
-    mockedUseCreateProgram.mockReturnValue({
-      mutate: createProgramMutate,
-      isPending: false,
-      isError: false,
-    } as unknown as ReturnType<typeof useCreateProgram>);
-    const createJournalMutate = jest.fn((_input, options) => {
-      options.onError(new Error('rls denied'));
-    });
-    mockedUseCreateJournal.mockReturnValue({
-      mutate: createJournalMutate,
-      isPending: false,
-      isError: true,
-    } as unknown as ReturnType<typeof useCreateJournal>);
-
-    await render(<ProgramCreateScreen userId="user-1" intent="journal" />);
-
-    await fireEvent.changeText(screen.getByTestId('program-form-name'), 'Legs');
-    await fireEvent.changeText(screen.getByTestId('program-form-day-0'), 'Leg day');
-    await fireEvent.press(screen.getByTestId('program-form-save'));
-
-    // The program itself saved fine — the screen must navigate to it (proving it exists,
-    // and preventing a Save retry from inserting a duplicate), not silently go back, and
-    // must not show "couldn't create the program" for a failure that was really the
-    // journal step, not program creation.
-    expect(replace).toHaveBeenCalledWith('/program/program-1');
-    expect(back).not.toHaveBeenCalled();
-    expect(screen.queryByTestId('program-form-error')).toBeNull();
+    expect(back).toHaveBeenCalledTimes(1);
   });
 });

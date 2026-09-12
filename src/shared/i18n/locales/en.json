@@ -72,13 +72,13 @@
   "home": {
     "title": "Home",
     "emptyTitle": "No active program",
-    "emptyBody": "Start a journal to begin tracking your workouts",
+    "emptyBody": "Create a program to get started.",
+    "programLabel": "Program",
+    "nextDay": "Next: {{day}}",
     "journalLabel": "Journal",
-    "noJournalYet": "No journal yet for this program.",
-    "startJournal": "Start journal",
-    "newJournalCta": "+ New journal",
+    "noJournalYet": "No journal yet.",
+    "journalNeedsProgram": "Create a program to start a journal.",
     "noDays": "This program has no days set up yet.",
-    "startJournalError": "Couldn't start your journal. Try again.",
     "loadError": "Couldn't load your program."
   },
   "programs": {
@@ -155,7 +155,6 @@
   },
   "journal": {
     "title": "Journal",
-    "newJournalTitle": "Start a journal",
     "newEntryTitle": "New entry",
     "loadError": "Couldn't load this journal.",
     "newEntry": "+ New entry",

@@ -12,8 +12,7 @@ type Props = {
 // Bottom sheet opened from the Programs tab header's "New" button, offering the two ways to
 // get a program: AI generation (the faster, primary path) or the manual form. Kept as one
 // header entry point rather than two separate pills — a second pill next to the tab's
-// "Programs" title header overflowed/overlapped on device. See NewJournalSheet for the same
-// choice offered from the Home tab, sharing GenerateOrManualSheet underneath.
+// "Programs" title header overflowed/overlapped on device.
 export function NewProgramSheet({ visible, onGenerate, onCreateManually, onClose }: Props) {
   const { t } = useTranslation();
   return (

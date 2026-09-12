@@ -16,9 +16,9 @@ type Props = {
   onClose: () => void;
 };
 
-// The generate-vs-manual choice offered by both NewProgramSheet (Programs tab's "New") and
-// NewJournalSheet (Home tab's "start a journal") — same layout and behavior, only the sheet's
-// own title and testID prefix differ, so those two stay thin wrappers around this.
+// The generate-vs-manual choice offered by NewProgramSheet (Programs tab's "New" button) —
+// a thin wrapper around this shared layout/behavior, with just its own title and testID
+// prefix.
 export function GenerateOrManualSheet({
   visible,
   title,
