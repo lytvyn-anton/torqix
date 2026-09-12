@@ -74,8 +74,8 @@ describe('JournalScreen', () => {
   it('lists saved entries, most recent first as returned by the query', async () => {
     mockedUseJournalEntries.mockReturnValue({
       data: [
-        { id: 'entry-1', entryDate: '2026-09-01', programDayName: 'Push day', setCount: 6 },
-        { id: 'entry-2', entryDate: '2026-08-30', programDayName: null, setCount: 3 },
+        { id: 'entry-1', entryDate: '2026-09-01', dayName: 'Push day', setCount: 6 },
+        { id: 'entry-2', entryDate: '2026-08-30', dayName: null, setCount: 3 },
       ],
       isLoading: false,
       isError: false,

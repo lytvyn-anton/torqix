@@ -5,6 +5,7 @@ import {
   deleteJournal,
   getExerciseProgress,
   getJournal,
+  getJournalDays,
   getJournalEntries,
   getJournalForProgram,
   getJournals,
@@ -325,13 +326,13 @@ describe('getJournalEntries', () => {
         {
           id: 'entry-1',
           entry_date: '2026-09-01',
-          program_days: { name: 'Push day' },
+          journal_days: { name: 'Push day' },
           journal_entry_set_logs: [{ id: 'log-1' }, { id: 'log-2' }],
         },
         {
           id: 'entry-2',
           entry_date: '2026-08-30',
-          program_days: null,
+          journal_days: null,
           journal_entry_set_logs: [],
         },
       ],
@@ -347,8 +348,8 @@ describe('getJournalEntries', () => {
     expect(mockedFrom).toHaveBeenCalledWith('journal_entries');
     expect(eqJournal).toHaveBeenCalledWith('journal_id', 'journal-1');
     expect(result).toEqual([
-      { id: 'entry-1', entryDate: '2026-09-01', programDayName: 'Push day', setCount: 2 },
-      { id: 'entry-2', entryDate: '2026-08-30', programDayName: null, setCount: 0 },
+      { id: 'entry-1', entryDate: '2026-09-01', dayName: 'Push day', setCount: 2 },
+      { id: 'entry-2', entryDate: '2026-08-30', dayName: null, setCount: 0 },
     ]);
   });
 
@@ -361,6 +362,57 @@ describe('getJournalEntries', () => {
     } as never);
 
     await expect(getJournalEntries('journal-1')).rejects.toBe(error);
+  });
+});
+
+describe('getJournalDays', () => {
+  it("fetches a journal's own cloned days and exercises, sorted, mapped", async () => {
+    const order = jest.fn().mockResolvedValue({
+      data: [
+        {
+          id: 'day-1',
+          name: 'Push day',
+          order_index: 0,
+          journal_day_exercises: [
+            {
+              exercise_id: 'ex-1',
+              order_index: 0,
+              sets: 3,
+              reps: 10,
+              target_weight: 40,
+              exercises: { name: 'Back Squat' },
+            },
+          ],
+        },
+      ],
+      error: null,
+    });
+    const eqJournal = jest.fn().mockReturnValue({ order });
+    const select = jest.fn().mockReturnValue({ eq: eqJournal });
+    mockedFrom.mockReturnValue({ select } as never);
+
+    const result = await getJournalDays('journal-1');
+
+    expect(mockedFrom).toHaveBeenCalledWith('journal_days');
+    expect(eqJournal).toHaveBeenCalledWith('journal_id', 'journal-1');
+    expect(result).toEqual([
+      {
+        id: 'day-1',
+        name: 'Push day',
+        exercises: [
+          { exerciseId: 'ex-1', exerciseName: 'Back Squat', sets: 3, reps: 10, targetWeight: 40 },
+        ],
+      },
+    ]);
+  });
+
+  it('throws the supabase error', async () => {
+    const error = new Error('rls denied');
+    mockedFrom.mockReturnValue({
+      select: () => ({ eq: () => ({ order: () => Promise.resolve({ data: null, error }) }) }),
+    } as never);
+
+    await expect(getJournalDays('journal-1')).rejects.toBe(error);
   });
 });
 
@@ -549,29 +601,86 @@ describe('resolveJournalForProgram', () => {
     expect(mockedFrom).toHaveBeenCalledTimes(1);
   });
 
-  it('creates a journal when no active one exists yet for this program (including when the only one is archived)', async () => {
+  it('creates a journal when no active one exists yet for this program (including when the only one is archived), cloning its days/exercises', async () => {
+    const journalDayExercisesInsert = jest.fn().mockResolvedValue({ error: null });
+
     mockedFrom.mockImplementation(((table: string) => {
-      if (table !== 'journals') throw new Error(`unexpected table ${table}`);
-      return {
-        select: () => ({
-          eq: () => ({
+      if (table === 'journals') {
+        return {
+          select: () => ({
             eq: () => ({
               eq: () => ({
-                order: () => ({
-                  limit: () => ({
-                    maybeSingle: () => Promise.resolve({ data: null, error: null }),
+                eq: () => ({
+                  order: () => ({
+                    limit: () => ({
+                      maybeSingle: () => Promise.resolve({ data: null, error: null }),
+                    }),
                   }),
                 }),
               }),
             }),
           }),
-        }),
-        insert: (row: Record<string, unknown>) => ({
-          select: () => ({
-            single: () => Promise.resolve({ data: { id: 'journal-new', ...row }, error: null }),
+          insert: (row: Record<string, unknown>) => ({
+            select: () => ({
+              single: () => Promise.resolve({ data: { id: 'journal-new', ...row }, error: null }),
+            }),
           }),
-        }),
-      };
+        };
+      }
+      if (table === 'workout_programs') {
+        return {
+          select: () => ({
+            eq: () => ({
+              single: () =>
+                Promise.resolve({
+                  data: {
+                    id: 'program-1',
+                    name: 'PPL',
+                    status: 'active',
+                    created_at: '2026-09-01',
+                    program_days: [
+                      {
+                        id: 'day-1',
+                        name: 'Push day',
+                        order_index: 0,
+                        program_day_exercises: [
+                          {
+                            exercise_id: 'ex-1',
+                            order_index: 0,
+                            sets: 3,
+                            reps: 10,
+                            target_weight: 40,
+                            exercises: { name: 'Back Squat' },
+                          },
+                        ],
+                      },
+                      { id: 'day-2', name: 'Pull day', order_index: 1, program_day_exercises: [] },
+                    ],
+                  },
+                  error: null,
+                }),
+            }),
+          }),
+        };
+      }
+      if (table === 'journal_days') {
+        return {
+          insert: () => ({
+            select: () =>
+              Promise.resolve({
+                data: [
+                  { id: 'cloned-day-1', order_index: 0 },
+                  { id: 'cloned-day-2', order_index: 1 },
+                ],
+                error: null,
+              }),
+          }),
+        };
+      }
+      if (table === 'journal_day_exercises') {
+        return { insert: journalDayExercisesInsert };
+      }
+      throw new Error(`unexpected table ${table}`);
     }) as never);
 
     const result = await resolveJournalForProgram('user-1', 'program-1', 'PPL');
@@ -582,6 +691,83 @@ describe('resolveJournalForProgram', () => {
       program_id: 'program-1',
       name: 'PPL',
     });
+    // One batched insert for both days' exercises together (only "Push day" has any —
+    // "Pull day" contributes nothing), not one call per day.
+    expect(journalDayExercisesInsert).toHaveBeenCalledTimes(1);
+    expect(journalDayExercisesInsert).toHaveBeenCalledWith([
+      {
+        journal_day_id: 'cloned-day-1',
+        exercise_id: 'ex-1',
+        order_index: 0,
+        sets: 3,
+        reps: 10,
+        target_weight: 40,
+      },
+    ]);
+  });
+
+  it('deletes the just-created journal when cloning fails partway, so a retry can create a fresh one', async () => {
+    const journalDelete = jest.fn().mockReturnValue({
+      eq: jest.fn().mockResolvedValue({ error: null }),
+    });
+    const cloneError = new Error('rls denied on journal_days');
+
+    mockedFrom.mockImplementation(((table: string) => {
+      if (table === 'journals') {
+        return {
+          select: () => ({
+            eq: () => ({
+              eq: () => ({
+                eq: () => ({
+                  order: () => ({
+                    limit: () => ({
+                      maybeSingle: () => Promise.resolve({ data: null, error: null }),
+                    }),
+                  }),
+                }),
+              }),
+            }),
+          }),
+          insert: (row: Record<string, unknown>) => ({
+            select: () => ({
+              single: () => Promise.resolve({ data: { id: 'journal-new', ...row }, error: null }),
+            }),
+          }),
+          delete: journalDelete,
+        };
+      }
+      if (table === 'workout_programs') {
+        return {
+          select: () => ({
+            eq: () => ({
+              single: () =>
+                Promise.resolve({
+                  data: {
+                    id: 'program-1',
+                    name: 'PPL',
+                    status: 'active',
+                    created_at: '2026-09-01',
+                    program_days: [
+                      { id: 'day-1', name: 'Push day', order_index: 0, program_day_exercises: [] },
+                    ],
+                  },
+                  error: null,
+                }),
+            }),
+          }),
+        };
+      }
+      if (table === 'journal_days') {
+        return {
+          insert: () => ({ select: () => Promise.resolve({ data: null, error: cloneError }) }),
+        };
+      }
+      throw new Error(`unexpected table ${table}`);
+    }) as never);
+
+    await expect(resolveJournalForProgram('user-1', 'program-1', 'PPL')).rejects.toBe(cloneError);
+
+    expect(journalDelete).toHaveBeenCalled();
   });
 });
 
@@ -599,14 +785,14 @@ describe('createJournalEntry', () => {
 
     const result = await createJournalEntry('user-1', {
       journalId: 'journal-1',
-      programDayId: 'day-1',
+      journalDayId: 'day-1',
       sets: [{ exerciseId: 'ex-1', setIndex: 0, repsDone: 8, weight: 60 }],
     });
 
     expect(entryInsert).toHaveBeenCalledWith({
       journal_id: 'journal-1',
       user_id: 'user-1',
-      program_day_id: 'day-1',
+      journal_day_id: 'day-1',
       entry_date: expect.any(String),
     });
     expect(setsInsert).toHaveBeenCalledWith([
@@ -623,7 +809,7 @@ describe('createJournalEntry', () => {
 
     const result = await createJournalEntry('user-1', {
       journalId: 'journal-1',
-      programDayId: null,
+      journalDayId: null,
       sets: [],
     });
 
@@ -638,7 +824,7 @@ describe('createJournalEntry', () => {
     } as never);
 
     await expect(
-      createJournalEntry('user-1', { journalId: 'journal-1', programDayId: null, sets: [] }),
+      createJournalEntry('user-1', { journalId: 'journal-1', journalDayId: null, sets: [] }),
     ).rejects.toBe(error);
   });
 
@@ -659,7 +845,7 @@ describe('createJournalEntry', () => {
     await expect(
       createJournalEntry('user-1', {
         journalId: 'journal-1',
-        programDayId: null,
+        journalDayId: null,
         sets: [{ exerciseId: 'ex-1', setIndex: 0, repsDone: 8, weight: 60 }],
       }),
     ).rejects.toBe(error);

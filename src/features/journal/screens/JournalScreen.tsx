@@ -90,9 +90,9 @@ function EntryCard({ entry, locale }: { entry: JournalEntrySummary; locale: stri
   return (
     <View style={styles.card} testID={`journal-entry-${entry.id}`}>
       <View style={styles.cardHeader}>
-        {/* program_day_id is nullable (ON DELETE SET NULL) — an entry whose day was deleted,
+        {/* journal_day_id is nullable (ON DELETE SET NULL) — an entry whose day was deleted,
             or logged with none picked, still shows up with a blank day label. */}
-        <Text style={styles.dayName}>{entry.programDayName ?? t('journal.noDay')}</Text>
+        <Text style={styles.dayName}>{entry.dayName ?? t('journal.noDay')}</Text>
         <Text style={styles.date}>{formatUtcDate(entry.entryDate, locale)}</Text>
       </View>
       <Text style={styles.setCount}>{t('journal.setCount', { count: entry.setCount })}</Text>

@@ -25,12 +25,11 @@ import Swipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 import { SaveDiscardSheet } from '../components/SaveDiscardSheet';
 import { useCreateJournalEntry } from '../hooks/useCreateJournalEntry';
 import { useJournal } from '../hooks/useJournal';
+import { useJournalDays } from '../hooks/useJournalDays';
 import { useLastPerformedJournalSets } from '../hooks/useLastPerformedJournalSets';
-import type { SetLogInput } from '../types';
+import type { JournalDayExercise, SetLogInput } from '../types';
 import { ExercisePickerScreen } from '../../exercises/screens/ExercisePickerScreen';
 import type { Exercise } from '../../exercises/types';
-import { useProgram } from '../../programs/hooks/useProgram';
-import type { ProgramDetailExercise } from '../../programs/types';
 import { TrashIcon } from '../../../shared/components/icons/TrashIcon';
 import { useFormStyles } from '../../../shared/theme/formStyles';
 import { useTheme } from '../../../shared/theme/ThemeProvider';
@@ -40,9 +39,10 @@ import { toNullableFloat, toNullableInt } from '../../../shared/utils/numberInpu
 type Props = {
   userId: string;
   journalId: string;
-  // Set when arriving from the Home tab's JournalWidgetCard, which lets the user tap a
-  // specific program day rather than always landing on the "which day?" picker below —
-  // ignored if it doesn't match one of this journal's program's days (e.g. stale deep link).
+  // Optionally pre-selects a specific cloned day (via the journal-entry/[journalId] route's
+  // ?dayId param) rather than landing on the "which day?" picker below — ignored if it
+  // doesn't match one of this journal's own days (e.g. a stale deep link). No current
+  // in-app entry point passes this; kept as the route already supports it.
   initialDayId?: string;
 };
 
@@ -83,7 +83,7 @@ function makeDraftId(counter: { current: number }, prefix: string): string {
 }
 
 function defaultDraft(
-  exercise: ProgramDetailExercise,
+  exercise: JournalDayExercise,
   idCounter: { current: number },
   idPrefix: string,
 ): Draft {
@@ -97,7 +97,7 @@ function defaultDraft(
 // An exercise added ad hoc (via the picker below), not one of the program day's predefined
 // ones — no target sets/reps/weight, since there's no plan behind it, just what actually
 // gets logged.
-function toAdHocExercise(exercise: Exercise): ProgramDetailExercise {
+function toAdHocExercise(exercise: Exercise): JournalDayExercise {
   return {
     exerciseId: exercise.id,
     exerciseName: exercise.name,
@@ -121,12 +121,12 @@ function groupByExercise<T extends { exerciseId: string; setIndex: number }>(
 }
 
 // Drafts are keyed by the exercise's position in the day's list, not its exercise id —
-// ProgramDetailExercise (programsApi.getProgram's shape) has no program_day_exercises row id
+// JournalDayExercise (journalApi's getJournalDays shape) has no journal_day_exercises row id
 // to key by, so two cards for the same exercise on one day (a rare setup) would otherwise
 // collide. The lastPerformed tier is still looked up by exercise id, same as the old
 // SetLoggingScreen's "claimed" logic, so only the first card for a shared exercise gets it.
 function computeInitialDrafts(
-  exercises: ProgramDetailExercise[],
+  exercises: JournalDayExercise[],
   lastPerformed: SetLogInput[],
   idCounter: { current: number },
 ): Record<number, Draft[]> {
@@ -161,7 +161,7 @@ function computeInitialDrafts(
 // same underlying exercise can't both start at 0 and collide (see journal_entry_set_logs'
 // unique (journal_entry_id, exercise_id, set_index) constraint).
 function buildInputs(
-  exercises: ProgramDetailExercise[],
+  exercises: JournalDayExercise[],
   drafts: Record<number, Draft[]>,
 ): SetLogInput[] {
   const inputs: SetLogInput[] = [];
@@ -189,28 +189,22 @@ export function JournalEntryScreen({ userId, journalId, initialDayId }: Props) {
   const deleteSetLabel = t('journal.deleteSet');
 
   const journalQuery = useJournal(journalId);
-  // A program-less journal (never had one, or had one deleted out from under it — program_id
-  // is ON DELETE SET NULL) has no days to log against, but is still fully loggable: see the
-  // days.length === 0 handling below, which drops straight into a blank entry rather than a
-  // dead end. useProgram is disabled (enabled: !!programId) when there's nothing to fetch.
-  const hasProgram = journalQuery.data?.programId != null;
-  const programQuery = useProgram(journalQuery.data?.programId ?? undefined);
+  // journal_days is the journal's own one-time copy of whatever days/exercises it was cloned
+  // from (see journalApi's cloneProgramDaysIntoJournal) — a journal that was never cloned
+  // from a program (or a program with no days at the time) simply has none, and this screen
+  // treats that the same way: not a dead end, just a blank entry to log ad hoc against (see
+  // the days.length === 0 handling below). One query, keyed by journalId, which is always
+  // known up front — unlike the old live-program lookup this replaced, there's no second
+  // query whose own loading state could be mistaken for "no days".
+  const journalDaysQuery = useJournalDays(journalId);
   const createEntry = useCreateJournalEntry(userId);
 
-  // Neither journalQuery nor (when there's a program) programQuery has necessarily resolved
-  // yet on an early render — until they have, `days` below is indistinguishable from "no
-  // program has days" (both start out empty), so the initialization effect further down must
-  // not treat that as "nothing to wait for" and lock in a blank exercise list.
-  const queriesSettled =
-    journalQuery.data !== undefined && (!hasProgram || programQuery.data !== undefined);
-
-  const days = programQuery.data?.days ?? [];
+  const days = journalDaysQuery.data ?? [];
   const [selectedDayId, setSelectedDayId] = useState<string | null>(null);
-  // Auto-picks initialDayId (arrived here via a specific day on the Home tab's
-  // JournalWidgetCard) or the only day there is — set during render (React's documented
-  // pattern for deriving state from data that just became available) rather than an Effect,
-  // so there's no wasted frame showing a picker with a single, pointless, or already-decided
-  // option.
+  // Auto-picks initialDayId (see the Props comment above) or the only day there is — set
+  // during render (React's documented pattern for deriving state from data that just became
+  // available) rather than an Effect, so there's no wasted frame showing a picker with a
+  // single, pointless, or already-decided option.
   const initialDayMatches = initialDayId != null && days.some((day) => day.id === initialDayId);
   if (selectedDayId === null && initialDayMatches) {
     setSelectedDayId(initialDayId as string);
@@ -229,7 +223,7 @@ export function JournalEntryScreen({ userId, journalId, initialDayId }: Props) {
   // exercises (if any), then freely editable: "+ Add exercise" below appends to this same
   // list, ad hoc, with no day or program behind the addition. State, not derived from
   // selectedDay, precisely so an added exercise survives independently of it.
-  const [exercises, setExercises] = useState<ProgramDetailExercise[]>([]);
+  const [exercises, setExercises] = useState<JournalDayExercise[]>([]);
   // Nothing here is sent to the server as you type — everything currently in `drafts` is
   // saved in one request only when the user taps Save. Leaving any other way (back button,
   // gesture) with unsaved changes is caught by usePreventRemove below instead of silently
@@ -248,13 +242,13 @@ export function JournalEntryScreen({ userId, journalId, initialDayId }: Props) {
   });
 
   // Fires once either a day is picked (or auto-picked above) or there's nothing to pick from
-  // at all (a program-less journal, or a program with no days yet) — the latter starts from a
-  // blank exercise list rather than waiting forever on a day that will never be selected.
-  // Gated on queriesSettled so a still-loading journal/program (days=[] on every render until
-  // then) can't be mistaken for "no days" and lock in that blank list prematurely.
+  // at all (no cloned days) — the latter starts from a blank exercise list rather than
+  // waiting forever on a day that will never be selected. Gated on journalDaysQuery.isLoading
+  // so a still-loading fetch (days=[] on every render until it resolves) can't be mistaken
+  // for "no days" and lock in that blank list prematurely.
   if (
     !isInitialized &&
-    queriesSettled &&
+    !journalDaysQuery.isLoading &&
     (days.length === 0 || selectedDay) &&
     !lastPerformedQuery.isLoading
   ) {
@@ -279,7 +273,7 @@ export function JournalEntryScreen({ userId, journalId, initialDayId }: Props) {
     });
   };
 
-  const handleAddSetRow = (exercise: ProgramDetailExercise, exerciseIndex: number) => {
+  const handleAddSetRow = (exercise: JournalDayExercise, exerciseIndex: number) => {
     if (!isDirty) setIsDirty(true);
     const rows = drafts[exerciseIndex] ?? [];
     setDrafts({
@@ -318,7 +312,7 @@ export function JournalEntryScreen({ userId, journalId, initialDayId }: Props) {
 
   const handleSave = () => {
     createEntry.mutate(
-      { journalId, programDayId: selectedDayId, sets: buildInputs(exercises, drafts) },
+      { journalId, journalDayId: selectedDayId, sets: buildInputs(exercises, drafts) },
       {
         onSuccess: () => {
           setIsDirty(false);
@@ -356,7 +350,7 @@ export function JournalEntryScreen({ userId, journalId, initialDayId }: Props) {
     );
   }
 
-  if (hasProgram && programQuery.isLoading) {
+  if (journalDaysQuery.isLoading) {
     return (
       <View style={styles.centered} testID="journal-entry-loading">
         <ActivityIndicator color={colors.accent} />
@@ -364,7 +358,9 @@ export function JournalEntryScreen({ userId, journalId, initialDayId }: Props) {
     );
   }
 
-  if (hasProgram && (programQuery.isError || !programQuery.data)) {
+  // Only fatal on a first load with no cached days yet — a background refetch error
+  // shouldn't hide an already-loaded, still-loggable day list, same guard as elsewhere.
+  if (journalDaysQuery.isError && journalDaysQuery.data === undefined) {
     return (
       <View style={styles.centered} testID="journal-entry-load-error">
         <Text style={formStyles.error}>{t('journal.loadError')}</Text>
